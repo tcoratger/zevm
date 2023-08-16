@@ -5,7 +5,9 @@ pub const ExecutionResultEnum = enum { Success, Revert, Halt };
 
 pub const ExecutionResult = union(ExecutionResultEnum) {
     /// Returned successfully
-    Success: struct { reason: Eval, gas_used: u64, gas_refunded: u64, logs: []log.Log, output: Output },
+    // Success: struct { reason: Eval, gas_used: u64, gas_refunded: u64, logs: []log.Log, output: Output },
+
+    Success: struct { gas_used: u64, logs: []log.Log },
     /// Reverted by `REVERT` opcode that doesn't spend all gas.
     Revert: struct { gas_used: u64, output: u64 },
     /// Reverted for various reasons and spend all gas.
@@ -15,8 +17,19 @@ pub const ExecutionResult = union(ExecutionResultEnum) {
         gas_used: u64,
     },
 
+    /// Returns if transaction execution is successful.
+    /// 1 indicates success, 0 indicates revert.
+    /// https://eips.ethereum.org/EIPS/eip-658
     pub fn is_success(execution_result: ExecutionResult) bool {
         return execution_result == ExecutionResultEnum.Success;
+    }
+
+    /// Return logs, if execution is not successful, function will return empty vec.
+    pub fn logs(execution_result: ExecutionResult) []log.Log {
+        return switch (execution_result) {
+            .Success => execution_result.Success.logs,
+            else => undefined,
+        };
     }
 };
 
