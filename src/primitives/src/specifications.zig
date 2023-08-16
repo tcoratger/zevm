@@ -72,6 +72,10 @@ pub const SpecId = enum(u8) {
     }
 
     pub fn enabled(our: SpecId, other: SpecId) bool {
-        return @enumToInt(our) >= @enumToInt(other);
+        return @intFromEnum(our) >= @intFromEnum(other);
+    }
+
+    pub fn from_u8(spec_id: u8) SpecId {
+        return @as(SpecId, @enumFromInt(spec_id));
     }
 };
