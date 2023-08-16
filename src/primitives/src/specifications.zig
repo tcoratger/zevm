@@ -70,4 +70,8 @@ pub const SpecId = enum(u8) {
             return SpecId.LATEST;
         }
     }
+
+    pub fn enabled(our: SpecId, other: SpecId) bool {
+        return @enumToInt(our) >= @enumToInt(other);
+    }
 };
