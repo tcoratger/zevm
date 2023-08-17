@@ -5,9 +5,7 @@ pub const ExecutionResultEnum = enum { Success, Revert, Halt };
 
 pub const ExecutionResult = union(ExecutionResultEnum) {
     /// Returned successfully
-    // Success: struct { reason: Eval, gas_used: u64, gas_refunded: u64, logs: []log.Log, output: Output },
-
-    Success: struct { gas_used: u64, logs: []log.Log },
+    Success: struct { reason: Eval, gas_used: u64, gas_refunded: u64, logs: []log.Log, output: Output },
     /// Reverted by `REVERT` opcode that doesn't spend all gas.
     Revert: struct { gas_used: u64, output: u64 },
     /// Reverted for various reasons and spend all gas.
@@ -39,7 +37,9 @@ pub const Eval = enum {
     SelfDestruct,
 };
 
-pub const Output = enum { Call, Create };
+pub const OutputEnum = enum { Call, Create };
+
+pub const Output = union(OutputEnum) { Call: struct { bytes: []u8 }, Create: struct { bytes: []u8 } };
 
 pub const Halt = enum { OutOfGasError, OpcodeNotFound, InvalidFEOpcode, InvalidJump, NotActivated, StackUnderflow, StackOverflow, OutOfOffset, CreateCollision, PrecompileError, NonceOverflow, CreateContractSizeLimit, CreateContractStartingWithEF, CreateInitcodeSizeLimit, OverflowPayment, StateChangeDuringStaticCall, CallNotAllowedInsideStatic, OutOfFund, CallTooDeep };
 
