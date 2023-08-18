@@ -64,7 +64,7 @@ pub const Output = union(OutputEnum) {
 pub const Halt = enum { OutOfGasError, OpcodeNotFound, InvalidFEOpcode, InvalidJump, NotActivated, StackUnderflow, StackOverflow, OutOfOffset, CreateCollision, PrecompileError, NonceOverflow, CreateContractSizeLimit, CreateContractStartingWithEF, CreateInitcodeSizeLimit, OverflowPayment, StateChangeDuringStaticCall, CallNotAllowedInsideStatic, OutOfFund, CallTooDeep };
 
 /// InvalidTransaction enumeration represents various reasons for invalid Ethereum transactions.
-pub const InvalidTransaction = enum {
+pub const InvalidTransaction = union(enum) {
     /// Gas max fee is greater than priority fee.
     GasMaxFeeGreaterThanPriorityFee,
     /// Gas price is less than basefee.
@@ -76,45 +76,30 @@ pub const InvalidTransaction = enum {
     /// EIP-3607: Reject transactions from senders with deployed code.
     RejectCallerWithCode,
     /// Transaction sender doesn't have enough funds to cover max fee.
-    LackOfFundForMaxFee,
+    LackOfFundForMaxFee: struct {
+        fee: u64,
+        balance: u256,
+    },
     /// Overflow in payment within the transaction.
     OverflowPaymentInTransaction,
     /// Nonce overflow within the transaction.
     NonceOverflowInTransaction,
     /// Transaction nonce is too high compared to state.
-    NonceTooHigh,
+    NonceTooHigh: struct {
+        tx: u64,
+        state: u64,
+    },
     /// Transaction nonce is too low compared to state.
-    NonceTooLow,
+    NonceTooLow: struct {
+        tx: u64,
+        state: u64,
+    },
     /// EIP-3860: Initcode size exceeds the limit.
     CreateInitcodeSizeLimit,
     /// Invalid chain ID in the transaction.
     InvalidChainId,
     /// Access list is not supported for blocks before Berlin hardfork.
     AccessListNotSupported,
-
-    /// Custom type for LackOfFundForMaxFee error.
-    pub fn lack_of_fund_for_max_fee() type {
-        return struct {
-            fee: u64,
-            balance: u256,
-        };
-    }
-
-    /// Custom type for NonceTooHigh error.
-    pub fn nonce_too_high() type {
-        return struct {
-            tx: u64,
-            state: u64,
-        };
-    }
-
-    /// Custom type for NonceTooLow error.
-    pub fn nonce_too_low() type {
-        return struct {
-            tx: u64,
-            state: u64,
-        };
-    }
 };
 
 pub const OutOfGasError = enum {
@@ -134,9 +119,6 @@ pub const OutOfGasError = enum {
 pub fn main() void {
     var buf: [4]u8 = .{ 0, 0, 4, 0 };
     var u = Output{ .Create = .{ .bytes = @as([]u8, @ptrCast(&buf)), .option = utils.Option(u64){ .Some = 67 } } };
-    _ = u;
 
-    const toto = InvalidTransaction.lack_of_fund_for_max_fee(){ .fee = 10, .balance = 43 };
-
-    std.debug.print("test = {any}\n", .{toto});
+    std.debug.print("test = {any}\n", .{u});
 }
