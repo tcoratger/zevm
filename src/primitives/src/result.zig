@@ -1,5 +1,6 @@
 const std = @import("std");
 const log = @import("./log.zig");
+const utils = @import("./utils.zig");
 
 pub const ExecutionResultEnum = enum { Success, Revert, Halt };
 
@@ -39,7 +40,26 @@ pub const Eval = enum {
 
 pub const OutputEnum = enum { Call, Create };
 
-pub const Output = union(OutputEnum) { Call: struct { bytes: []u8 }, Create: struct { bytes: []u8 } };
+pub const Output = union(OutputEnum) {
+    Call: struct { bytes: []u8 },
+    Create: struct { bytes: []u8, option: utils.Option(u64) },
+
+    /// Returns the output data of the execution output.
+    pub fn into_data(output: Output) []u8 {
+        return switch (output) {
+            .Call => output.Call.bytes,
+            .Create => output.Create.bytes,
+        };
+    }
+
+    /// Returns the output data of the execution output.
+    pub fn data(output: *Output) *[]u8 {
+        return switch (output.*) {
+            .Call => &output.Call.bytes,
+            .Create => &output.Create.bytes,
+        };
+    }
+};
 
 pub const Halt = enum { OutOfGasError, OpcodeNotFound, InvalidFEOpcode, InvalidJump, NotActivated, StackUnderflow, StackOverflow, OutOfOffset, CreateCollision, PrecompileError, NonceOverflow, CreateContractSizeLimit, CreateContractStartingWithEF, CreateInitcodeSizeLimit, OverflowPayment, StateChangeDuringStaticCall, CallNotAllowedInsideStatic, OutOfFund, CallTooDeep };
 
@@ -56,3 +76,10 @@ pub const OutOfGasError = enum {
     // i.e. in `as_usize_or_fail`
     InvalidOperand,
 };
+
+pub fn main() void {
+    var buf: [4]u8 = .{ 0, 0, 4, 0 };
+    var u = Output{ .Create = .{ .bytes = @as([]u8, @ptrCast(&buf)), .option = utils.Option(u64){ .Some = 67 } } };
+
+    std.debug.print("test = {any}\n", .{Output.data(&u)});
+}
