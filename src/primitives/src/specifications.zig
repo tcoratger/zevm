@@ -37,6 +37,7 @@ pub const SpecId = enum(u8) {
     CANCUN = 17,
     LATEST = 18,
 
+    // For the moment zig doesn't support switch on string
     pub fn from(name: []const u8) SpecId {
         if (std.mem.eql(u8, name, "Frontier")) {
             return SpecId.FRONTIER;
