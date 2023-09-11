@@ -3,23 +3,6 @@ const specifications = @import("./specifications.zig");
 
 const specId = specifications.SpecId;
 
-test "SpecId: from function" {
-    try std.testing.expect(specId.from("Frontier") == specId.FRONTIER);
-    try std.testing.expect(specId.from("Homestead") == specId.HOMESTEAD);
-    try std.testing.expect(specId.from("Tangerine") == specId.TANGERINE);
-    try std.testing.expect(specId.from("Spurious") == specId.SPURIOUS_DRAGON);
-    try std.testing.expect(specId.from("Byzantium") == specId.BYZANTIUM);
-    try std.testing.expect(specId.from("Constantinople") == specId.CONSTANTINOPLE);
-    try std.testing.expect(specId.from("Petersburg") == specId.PETERSBURG);
-    try std.testing.expect(specId.from("Istanbul") == specId.ISTANBUL);
-    try std.testing.expect(specId.from("MuirGlacier") == specId.MUIR_GLACIER);
-    try std.testing.expect(specId.from("Berlin") == specId.BERLIN);
-    try std.testing.expect(specId.from("London") == specId.LONDON);
-    try std.testing.expect(specId.from("Shanghai") == specId.SHANGHAI);
-    try std.testing.expect(specId.from("Cancun") == specId.CANCUN);
-    try std.testing.expect(specId.from("whatever") == specId.LATEST);
-}
-
 test "SpecId: enabled function" {
     try std.testing.expect(specId.enabled(specId.FRONTIER_THAWING, specId.FRONTIER) == true);
     try std.testing.expect(specId.enabled(specId.HOMESTEAD, specId.DAO_FORK) == false);

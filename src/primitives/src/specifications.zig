@@ -37,41 +37,6 @@ pub const SpecId = enum(u8) {
     CANCUN = 17,
     LATEST = 18,
 
-    // For the moment zig doesn't support switch on string
-    pub fn from(name: []const u8) SpecId {
-        if (std.mem.eql(u8, name, "Frontier")) {
-            return SpecId.FRONTIER;
-        } else if (std.mem.eql(u8, name, "Homestead")) {
-            return SpecId.HOMESTEAD;
-        } else if (std.mem.eql(u8, name, "Tangerine")) {
-            return SpecId.TANGERINE;
-        } else if (std.mem.eql(u8, name, "Spurious")) {
-            return SpecId.SPURIOUS_DRAGON;
-        } else if (std.mem.eql(u8, name, "Byzantium")) {
-            return SpecId.BYZANTIUM;
-        } else if (std.mem.eql(u8, name, "Constantinople")) {
-            return SpecId.CONSTANTINOPLE;
-        } else if (std.mem.eql(u8, name, "Petersburg")) {
-            return SpecId.PETERSBURG;
-        } else if (std.mem.eql(u8, name, "Istanbul")) {
-            return SpecId.ISTANBUL;
-        } else if (std.mem.eql(u8, name, "MuirGlacier")) {
-            return SpecId.MUIR_GLACIER;
-        } else if (std.mem.eql(u8, name, "Berlin")) {
-            return SpecId.BERLIN;
-        } else if (std.mem.eql(u8, name, "London")) {
-            return SpecId.LONDON;
-        } else if (std.mem.eql(u8, name, "Merge")) {
-            return SpecId.MERGE;
-        } else if (std.mem.eql(u8, name, "Shanghai")) {
-            return SpecId.SHANGHAI;
-        } else if (std.mem.eql(u8, name, "Cancun")) {
-            return SpecId.CANCUN;
-        } else {
-            return SpecId.LATEST;
-        }
-    }
-
     pub fn enabled(our: SpecId, other: SpecId) bool {
         return @intFromEnum(our) >= @intFromEnum(other);
     }
