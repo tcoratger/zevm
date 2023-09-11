@@ -61,7 +61,7 @@ pub const Output = union(OutputEnum) {
     }
 };
 
-pub const Halt = enum { OutOfGasError, OpcodeNotFound, InvalidFEOpcode, InvalidJump, NotActivated, StackUnderflow, StackOverflow, OutOfOffset, CreateCollision, PrecompileError, NonceOverflow, CreateContractSizeLimit, CreateContractStartingWithEF, CreateInitcodeSizeLimit, OverflowPayment, StateChangeDuringStaticCall, CallNotAllowedInsideStatic, OutOfFund, CallTooDeep };
+pub const Halt = error{ OutOfGasError, OpcodeNotFound, InvalidFEOpcode, InvalidJump, NotActivated, StackUnderflow, StackOverflow, OutOfOffset, CreateCollision, PrecompileError, NonceOverflow, CreateContractSizeLimit, CreateContractStartingWithEF, CreateInitcodeSizeLimit, OverflowPayment, StateChangeDuringStaticCall, CallNotAllowedInsideStatic, OutOfFund, CallTooDeep };
 
 /// InvalidTransaction enumeration represents various reasons for invalid Ethereum transactions.
 pub const InvalidTransaction = union(enum) {
@@ -102,7 +102,7 @@ pub const InvalidTransaction = union(enum) {
     AccessListNotSupported,
 };
 
-pub const OutOfGasError = enum {
+pub const OutOfGasError = error{
     // Basic OOG error
     BasicOutOfGas,
     // Tried to expand past REVM limit
