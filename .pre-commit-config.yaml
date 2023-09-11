@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: zig-fmt
+        name: Run zig fmt
+        description: This hook runs zig fmt on all .zig files.
+        entry: zig fmt src
+        language: system
+        types: [file]
+        files: '\.zig$'
