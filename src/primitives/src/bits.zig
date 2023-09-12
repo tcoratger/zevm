@@ -12,6 +12,10 @@ pub const B256 = struct {
         var slice = [_]u8{0} ** (2 + 2 * 32);
         return Serialize.serialize_raw(&slice, &self.bytes);
     }
+
+    pub fn eql(self: B256, other: B256) bool {
+        return std.mem.eql(u8, &self.bytes, &other.bytes);
+    }
 };
 
 /// zevm 256 bits type.
