@@ -31,6 +31,10 @@ pub const AccountInfo = struct {
     pub fn is_empty(self: AccountInfo) bool {
         return self.balance.eqlZero() and self.nonce == 0 and (self.code_hash.eql(constants.Constants.KECCAK_EMPTY) or self.code_hash.eql(bits.B256.zero()));
     }
+
+    pub fn exists(self: AccountInfo) bool {
+        return !self.is_empty();
+    }
 };
 
 test "AccountInfo: default function" {
@@ -64,4 +68,8 @@ test "AccountInfo: new function" {
 
 test "AccountInfo: is_empty function" {
     try std.testing.expectEqual(AccountInfo.is_empty(AccountInfo.default()), true);
+}
+
+test "AccountInfo: exists function" {
+    try std.testing.expectEqual(AccountInfo.exists(AccountInfo.default()), false);
 }
