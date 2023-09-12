@@ -19,6 +19,7 @@ pub const B160 = struct {
     bytes: [20]u8,
 
     pub fn from(fr: u64) B160 {
+        // Big endian byte order
         return B160{ .bytes = [20]u8{
             0,                           0,                           0,                           0,                           0,                           0,                           0,                          0,                   0, 0, 0, 0,
             @intCast((fr >> 56) & 0xFF), @intCast((fr >> 48) & 0xFF), @intCast((fr >> 40) & 0xFF), @intCast((fr >> 32) & 0xFF), @intCast((fr >> 24) & 0xFF), @intCast((fr >> 16) & 0xFF), @intCast((fr >> 8) & 0xFF), @intCast(fr & 0xFF),

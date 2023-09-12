@@ -1,4 +1,5 @@
 const std = @import("std");
+const b256 = @import("./bits.zig");
 
 pub const Constants = struct {
     pub const ANY = "any";
@@ -144,4 +145,7 @@ pub const Constants = struct {
     pub const POST_MERGE_DIFFICULTY = 0;
     pub const POST_MERGE_MIX_HASH = ZERO_HASH32;
     pub const POST_MERGE_NONCE = [_]u8{0x00} ** 8;
+
+    // Keccak-256 of empty string: c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+    pub const KECCAK_EMPTY = b256.B256{ .bytes = [32]u8{ 197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0, 182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112 } };
 };
