@@ -27,6 +27,10 @@ pub const AccountInfo = struct {
     pub fn new(balance: std.math.big.int.Mutable, nonce: u64, code_hash: bits.B256, code: bytecode.Bytecode) AccountInfo {
         return AccountInfo{ .balance = balance, .nonce = nonce, .code_hash = code_hash, .code = code };
     }
+
+    pub fn is_empty(self: AccountInfo) bool {
+        return self.balance.eqlZero() and self.nonce == 0 and (self.code_hash.eql(constants.Constants.KECCAK_EMPTY) or self.code_hash.eql(bits.B256.zero()));
+    }
 };
 
 test "AccountInfo: default function" {
@@ -56,4 +60,8 @@ test "AccountInfo: new function" {
     try std.testing.expectEqual(accountInfo.code_hash, bits.B256{ .bytes = [32]u8{ 197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0, 182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112 } });
     try std.testing.expectEqualSlices(u8, accountInfo.code.bytecode, buf[0..]);
     try std.testing.expectEqual(accountInfo.code.state.Analysed.len, 0);
+}
+
+test "AccountInfo: is_empty function" {
+    try std.testing.expectEqual(AccountInfo.is_empty(AccountInfo.default()), true);
 }
