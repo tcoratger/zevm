@@ -1,4 +1,4 @@
-pub const PrecompileError = error {
+pub const PrecompileError = error{
     OutOfGas,
     Blake2WrongLength,
     Blake2WrongFinalIndicatorFlag,
