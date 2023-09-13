@@ -49,6 +49,10 @@ pub const AccountInfo = struct {
         self.code = utils.Option(bytecode.Bytecode){ .None = true };
         return y;
     }
+
+    pub fn from_balance(balance: std.math.big.int.Mutable) AccountInfo {
+        return AccountInfo{ .balance = balance, .nonce = 0, .code_hash = constants.Constants.KECCAK_EMPTY, .code = utils.Option(bytecode.Bytecode){ .Some = bytecode.Bytecode.new() } };
+    }
 };
 
 test "AccountInfo: default function" {
@@ -99,4 +103,18 @@ test "AccountInfo: take_bytecode function" {
     try std.testing.expectEqualSlices(u8, result_take_bytecode.Some.bytecode, buf[0..]);
     try std.testing.expectEqual(result_take_bytecode.Some.state.Analysed.len, 0);
     try std.testing.expectEqual(accountInfo.take_bytecode().None, true);
+}
+
+test "AccountInfo: from_balance function" {
+    var lb = [_]usize{ 100, 0, 0, 0 };
+    var buf: [1]u8 = .{0};
+    var balance = std.math.big.int.Mutable.init(&AccountInfo.limbs, 100);
+
+    try std.testing.expectEqualSlices(usize, AccountInfo.from_balance(balance).balance.limbs, lb[0..]);
+    try std.testing.expectEqual(AccountInfo.from_balance(balance).balance.len, 1);
+    try std.testing.expectEqual(AccountInfo.from_balance(balance).balance.positive, true);
+    try std.testing.expectEqual(AccountInfo.from_balance(balance).nonce, 0);
+    try std.testing.expectEqual(AccountInfo.from_balance(balance).code_hash, constants.Constants.KECCAK_EMPTY);
+    try std.testing.expectEqualSlices(u8, AccountInfo.from_balance(balance).code.Some.bytecode, buf[0..]);
+    try std.testing.expectEqual(AccountInfo.from_balance(balance).code.Some.state.Analysed.len, 0);
 }
