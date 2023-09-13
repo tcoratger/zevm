@@ -4,6 +4,26 @@ const bytecode = @import("./bytecode.zig");
 const constants = @import("./constants.zig");
 const utils = @import("./utils.zig");
 
+pub const AccountStatus = enum(u8) {
+    /// When account is loaded but not touched or interacted with.
+    /// This is the default state.
+    Loaded = 0b00000000,
+    /// When account is newly created we will not access database
+    /// to fetch storage values
+    Created = 0b00000001,
+    /// If account is marked for self destruction.
+    SelfDestructed = 0b00000010,
+    /// Only when account is marked as touched we will save it to database.
+    Touched = 0b00000100,
+    /// used only for pre spurious dragon hardforks where existing and empty were two separate states.
+    /// it became same state after EIP-161: State trie clearing
+    LoadedAsNotExisting = 0b0001000,
+
+    pub fn default() AccountStatus {
+        return AccountStatus.Loaded;
+    }
+};
+
 /// AccountInfo account information.
 pub const AccountInfo = struct {
     var limbs: [4]std.math.big.Limb = undefined;
@@ -54,6 +74,10 @@ pub const AccountInfo = struct {
         return AccountInfo{ .balance = balance, .nonce = 0, .code_hash = constants.Constants.KECCAK_EMPTY, .code = utils.Option(bytecode.Bytecode){ .Some = bytecode.Bytecode.new() } };
     }
 };
+
+test "AccountStatus: default function" {
+    try std.testing.expectEqual(AccountStatus.default(), AccountStatus.Loaded);
+}
 
 test "AccountInfo: default function" {
     var lb = [_]usize{ 0, 0, 0, 0 };
