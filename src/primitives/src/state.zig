@@ -4,6 +4,25 @@ const bytecode = @import("./bytecode.zig");
 const constants = @import("./constants.zig");
 const utils = @import("./utils.zig");
 
+pub const StorageSlot = struct {
+    original_value: std.math.big.int.Mutable,
+    /// When loaded with sload present value is set to original value
+    present_value: std.math.big.int.Mutable,
+};
+
+pub const Account = struct {
+    /// Balance of the account.
+    info: AccountInfo,
+    /// storage cache
+    storage: std.HashMap(std.math.big.int.Mutable, StorageSlot, utils.BigIntContext(std.math.big.int.Mutable), std.hash_map.default_max_load_percentage),
+    // Account status flags.
+    status: AccountStatus,
+    /// Mark account as self destructed.
+    pub fn mark_selfdestruct(self: *Account) void {
+        self.status = AccountStatus.SelfDestructed;
+    }
+};
+
 pub const AccountStatus = enum(u8) {
     /// When account is loaded but not touched or interacted with.
     /// This is the default state.
@@ -74,6 +93,21 @@ pub const AccountInfo = struct {
         return AccountInfo{ .balance = balance, .nonce = 0, .code_hash = constants.Constants.KECCAK_EMPTY, .code = utils.Option(bytecode.Bytecode){ .Some = bytecode.Bytecode.new() } };
     }
 };
+
+test "Account: mark_selfdestruct function" {
+    var map = std.HashMap(std.math.big.int.Mutable, StorageSlot, utils.BigIntContext(std.math.big.int.Mutable), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
+    defer map.deinit();
+    const big_int_0 = std.math.big.int.Mutable.init(&AccountInfo.limbs, 0);
+    try map.put(big_int_0, StorageSlot{ .original_value = big_int_0, .present_value = big_int_0 });
+
+    var account = Account{
+        .info = AccountInfo.default(),
+        .storage = map,
+        .status = AccountStatus.default(),
+    };
+    account.mark_selfdestruct();
+    try std.testing.expectEqual(account.status, AccountStatus.SelfDestructed);
+}
 
 test "AccountStatus: default function" {
     try std.testing.expectEqual(AccountStatus.default(), AccountStatus.Loaded);
