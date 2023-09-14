@@ -17,29 +17,93 @@ pub const Account = struct {
     storage: std.HashMap(std.math.big.int.Mutable, StorageSlot, utils.BigIntContext(std.math.big.int.Mutable), std.hash_map.default_max_load_percentage),
     // Account status flags.
     status: AccountStatus,
+
     /// Mark account as self destructed.
     pub fn mark_selfdestruct(self: *Account) void {
-        self.status = AccountStatus.SelfDestructed;
+        self.status.SelfDestructed = true;
+    }
+
+    /// Unmark account as self destructed.
+    pub fn unmark_selfdestruct(self: *Account) void {
+        self.status.SelfDestructed = false;
+    }
+
+    /// Is account marked for self destruct.
+    pub fn is_selfdestructed(self: *Account) bool {
+        return self.status.SelfDestructed;
+    }
+
+    /// Mark account as touched
+    pub fn mark_touch(self: *Account) void {
+        self.status.Touched = true;
+    }
+
+    /// Unmark the touch flag.
+    pub fn unmark_touch(self: *Account) void {
+        self.status.Touched = false;
+    }
+
+    /// If account status is marked as touched.
+    pub fn is_touched(self: Account) bool {
+        return self.status.Touched;
+    }
+
+    /// Mark account as newly created.
+    pub fn mark_created(self: *Account) void {
+        self.status.Created = true;
+    }
+
+    /// Unmark created flag.
+    pub fn unmark_created(self: *Account) void {
+        self.status.Created = false;
+    }
+
+    /// If account status is marked as created.
+    pub fn is_created(self: Account) bool {
+        return self.status.Created;
+    }
+
+    /// Is account loaded as not existing from database
+    /// This is needed for pre spurious dragon hardforks where
+    /// existing and empty were two separate states.
+    pub fn is_loaded_as_not_existing(self: Account) bool {
+        return self.status.LoadedAsNotExisting;
+    }
+
+    /// Is account empty, check if nonce and balance are zero and code is empty.
+    pub fn is_empty(self: Account) bool {
+        return self.info.is_empty();
+    }
+
+    /// Create new account and mark it as non existing.
+    pub fn new_not_existing(allocator: std.mem.Allocator) Account {
+        var map = std.HashMap(std.math.big.int.Mutable, StorageSlot, utils.BigIntContext(std.math.big.int.Mutable), std.hash_map.default_max_load_percentage).init(allocator);
+        defer map.deinit();
+        return Account{
+            .info = AccountInfo.default(),
+            .storage = map,
+            .status = AccountStatus{ .Loaded = false, .Created = false, .SelfDestructed = false, .Touched = false, .LoadedAsNotExisting = true },
+        };
     }
 };
 
-pub const AccountStatus = enum(u8) {
+pub const AccountStatus = struct {
     /// When account is loaded but not touched or interacted with.
     /// This is the default state.
-    Loaded = 0b00000000,
+    Loaded: bool,
     /// When account is newly created we will not access database
     /// to fetch storage values
-    Created = 0b00000001,
+    Created: bool,
     /// If account is marked for self destruction.
-    SelfDestructed = 0b00000010,
+    SelfDestructed: bool,
     /// Only when account is marked as touched we will save it to database.
-    Touched = 0b00000100,
+    Touched: bool,
     /// used only for pre spurious dragon hardforks where existing and empty were two separate states.
     /// it became same state after EIP-161: State trie clearing
-    LoadedAsNotExisting = 0b0001000,
+    LoadedAsNotExisting: bool,
 
     pub fn default() AccountStatus {
-        return AccountStatus.Loaded;
+        return AccountStatus{ .Loaded = true, .Created = false, .SelfDestructed = false, .Touched = false, .LoadedAsNotExisting = false };
     }
 };
 
@@ -94,7 +158,7 @@ pub const AccountInfo = struct {
     }
 };
 
-test "Account: mark_selfdestruct function" {
+test "Account: self destruct functions" {
     var map = std.HashMap(std.math.big.int.Mutable, StorageSlot, utils.BigIntContext(std.math.big.int.Mutable), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
     defer map.deinit();
     const big_int_0 = std.math.big.int.Mutable.init(&AccountInfo.limbs, 0);
@@ -106,11 +170,71 @@ test "Account: mark_selfdestruct function" {
         .status = AccountStatus.default(),
     };
     account.mark_selfdestruct();
-    try std.testing.expectEqual(account.status, AccountStatus.SelfDestructed);
+    try std.testing.expectEqual(account.status.SelfDestructed, true);
+    try std.testing.expectEqual(account.is_selfdestructed(), true);
+    account.unmark_selfdestruct();
+    try std.testing.expectEqual(account.status.SelfDestructed, false);
+    try std.testing.expectEqual(account.is_selfdestructed(), false);
+}
+
+test "Account: touched functions" {
+    var map = std.HashMap(std.math.big.int.Mutable, StorageSlot, utils.BigIntContext(std.math.big.int.Mutable), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
+    defer map.deinit();
+    const big_int_0 = std.math.big.int.Mutable.init(&AccountInfo.limbs, 0);
+    try map.put(big_int_0, StorageSlot{ .original_value = big_int_0, .present_value = big_int_0 });
+
+    var account = Account{
+        .info = AccountInfo.default(),
+        .storage = map,
+        .status = AccountStatus.default(),
+    };
+    account.mark_touch();
+    try std.testing.expectEqual(account.status.Touched, true);
+    try std.testing.expectEqual(account.is_touched(), true);
+    account.unmark_touch();
+    try std.testing.expectEqual(account.status.Touched, false);
+    try std.testing.expectEqual(account.is_touched(), false);
+}
+
+test "Account: created functions" {
+    var map = std.HashMap(std.math.big.int.Mutable, StorageSlot, utils.BigIntContext(std.math.big.int.Mutable), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
+    defer map.deinit();
+    const big_int_0 = std.math.big.int.Mutable.init(&AccountInfo.limbs, 0);
+    try map.put(big_int_0, StorageSlot{ .original_value = big_int_0, .present_value = big_int_0 });
+
+    var account = Account{
+        .info = AccountInfo.default(),
+        .storage = map,
+        .status = AccountStatus.default(),
+    };
+    account.mark_created();
+    try std.testing.expectEqual(account.status.Created, true);
+    try std.testing.expectEqual(account.is_created(), true);
+    account.unmark_created();
+    try std.testing.expectEqual(account.status.Created, false);
+    try std.testing.expectEqual(account.is_created(), false);
+}
+
+test "Account: is_empty function" {
+    var map = std.HashMap(std.math.big.int.Mutable, StorageSlot, utils.BigIntContext(std.math.big.int.Mutable), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
+    defer map.deinit();
+    const big_int_0 = std.math.big.int.Mutable.init(&AccountInfo.limbs, 0);
+    try map.put(big_int_0, StorageSlot{ .original_value = big_int_0, .present_value = big_int_0 });
+
+    var account = Account{
+        .info = AccountInfo.default(),
+        .storage = map,
+        .status = AccountStatus.default(),
+    };
+    try std.testing.expectEqual(account.is_empty(), true);
+}
+
+test "Account: new_not_existing function" {
+    try std.testing.expectEqual(Account.new_not_existing(std.testing.allocator).status.LoadedAsNotExisting, true);
 }
 
 test "AccountStatus: default function" {
-    try std.testing.expectEqual(AccountStatus.default(), AccountStatus.Loaded);
+    try std.testing.expectEqual(AccountStatus.default().Loaded, true);
 }
 
 test "AccountInfo: default function" {
