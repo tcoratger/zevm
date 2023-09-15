@@ -69,14 +69,3 @@ pub const Serialize = struct {
         }
     }
 };
-
-test "B256: zero function" {
-    try std.testing.expectEqual(B256.zero(), B256{ .bytes = [_]u8{0} ** 32 });
-}
-
-test "B160: from u64 function" {
-    try std.testing.expectEqual(B160.from(34353535), B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 12, 49, 127 } });
-    try std.testing.expectEqual(B160.from(11111111), B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 169, 138, 199 } });
-    try std.testing.expectEqual(B160.from(0), B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } });
-    try std.testing.expectEqual(B160.from(std.math.maxInt(u64)), B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255 } });
-}

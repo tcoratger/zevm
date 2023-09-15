@@ -1,5 +1,5 @@
 const std = @import("std");
-const b256 = @import("./bits.zig");
+const bits = @import("./bits.zig");
 
 pub const Constants = struct {
     pub const ANY = "any";
@@ -20,8 +20,10 @@ pub const Constants = struct {
     pub const ZERO_ADDRESS = [_]u8{0x00} ** 20;
     pub const ZERO_HASH32 = [_]u8{0x00} ** 32;
 
-    // Stack limit
-    pub const STACK_DEPTH_LIMIT = 1024;
+    /// Interpreter stack limit
+    pub const STACK_LIMIT: u64 = 1024;
+    /// EVM call stack limit
+    pub const CALL_STACK_LIMIT: u64 = 1024;
 
     // Gas cost and refund
     pub const GAS_NULL = 0;
@@ -147,5 +149,17 @@ pub const Constants = struct {
     pub const POST_MERGE_NONCE = [_]u8{0x00} ** 8;
 
     // Keccak-256 of empty string: c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
-    pub const KECCAK_EMPTY = b256.B256{ .bytes = [32]u8{ 197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0, 182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112 } };
+    pub const KECCAK_EMPTY = bits.B256{ .bytes = [32]u8{ 197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0, 182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112 } };
+
+    /// Precompile 3 is special in few places
+    pub const PRECOMPILE3 = bits.B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3 } };
+
+    /// EIP-170: Contract code size limit
+    /// By default limit is 0x6000 (~25kb)
+    pub const MAX_CODE_SIZE: usize = 0x6000;
+
+    /// EIP-3860: Limit and meter initcode
+    ///
+    /// Limit of maximum initcode size is 2 * MAX_CODE_SIZE
+    pub const MAX_INITCODE_SIZE: usize = 2 * Constants.MAX_CODE_SIZE;
 };
