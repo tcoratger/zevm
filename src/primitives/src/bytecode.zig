@@ -1,4 +1,5 @@
 pub const JumpMap = struct {};
+const std = @import("std");
 
 pub const BytecodeState = union(enum) {
     Raw,
@@ -64,6 +65,31 @@ pub const Bytecode = struct {
             .Raw => self.bytecode.len,
             .Checked => |*item| item.*.len,
             .Analysed => |*item| item.*.len,
+        };
+    }
+
+    pub fn to_check(self: Bytecode, allocator: std.mem.Allocator) !Bytecode {
+        return switch (self.state) {
+            .Raw => {
+                var new_bytecode = std.ArrayList(u8).init(allocator);
+                defer new_bytecode.deinit();
+                try new_bytecode.appendSlice(self.bytecode);
+                try new_bytecode.appendNTimes(0, 33);
+                return Bytecode{ .bytecode = try new_bytecode.toOwnedSlice(), .state = BytecodeState{ .Checked = .{ .len = self.bytecode.len } } };
+            },
+            else => self,
+        };
+    }
+
+    pub fn eql(self: Bytecode, other: Bytecode) bool {
+        return std.mem.eql(u8, self.bytecode, other.bytecode) and switch (self.state) {
+            .Raw => other.state == BytecodeState.Raw,
+            .Checked => {
+                return if (other.state == BytecodeState.Checked) self.state.Checked.len == other.state.Checked.len else false;
+            },
+            .Analysed => {
+                return if (other.state == BytecodeState.Analysed) self.state.Analysed.len == other.state.Analysed.len else false;
+            },
         };
     }
 };

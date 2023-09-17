@@ -44,3 +44,12 @@ test "Bytecode: len function" {
     try std.testing.expectEqual(bytecode.Bytecode.get_len(bytecode.Bytecode.new_raw(buf[0..0])), 0);
     try std.testing.expectEqual(bytecode.Bytecode.get_len(bytecode.Bytecode.new_raw(buf[0..])), 5);
 }
+
+test "Bytecode: to_check function" {
+    var buf: [5]u8 = .{ 0, 1, 2, 3, 4 };
+    var expected_buf: [38]u8 = .{ 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+    var check = try bytecode.Bytecode.new_raw(buf[0..]).to_check(std.testing.allocator);
+    defer std.mem.Allocator.free(std.testing.allocator, check.bytecode);
+    try std.testing.expectEqual(bytecode.Bytecode.eql(check, bytecode.Bytecode.new_checked(expected_buf[0..], 5)), true);
+}
