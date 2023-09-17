@@ -38,19 +38,17 @@ pub fn create_address(caller: bits.B160, nonce: u64, allocator: std.mem.Allocato
     defer stream.deinit();
 
     try stream.appendSlice(&caller.bytes);
-    var count_non_zero_nonce_bits: u8 = 0;
     for (u8_bytes_from_u64(nonce)) |b| {
         if (b != 0) {
-            count_non_zero_nonce_bits += 1;
             try stream.append(b);
         }
     }
 
-    if (nonce >= 128) {
-        try stream.insert(stream.items.len - count_non_zero_nonce_bits, @as(u8, 0x80 + count_non_zero_nonce_bits));
+    if (nonce >= 0x80) {
+        try stream.insert(bits.B160.bytes_len, @as(u8, 0x80 + @as(u8, @intCast(stream.items.len - bits.B160.bytes_len))));
     }
 
-    try stream.insert(0, 0x80 + 20);
+    try stream.insert(0, 0x80 + @as(u8, @intCast(bits.B160.bytes_len)));
     try stream.insert(0, 0xc0 + @as(u8, @intCast(stream.items.len)));
 
     const slice = try stream.toOwnedSlice();
