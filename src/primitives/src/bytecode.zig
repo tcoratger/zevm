@@ -2,8 +2,11 @@ pub const JumpMap = struct {};
 const std = @import("std");
 
 pub const BytecodeState = union(enum) {
+    /// No analysis has been performed.
     Raw,
+    /// The bytecode has been checked for validity.
     Checked: struct { len: usize },
+    /// The bytecode has been analyzed for valid jump destinations.
     Analysed: struct { len: usize, jump_map: JumpMap },
 };
 
