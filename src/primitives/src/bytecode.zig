@@ -91,11 +91,11 @@ pub const Bytecode = struct {
     pub fn to_check(self: Self, allocator: std.mem.Allocator) !Self {
         return switch (self.state) {
             .Raw => {
-                var new_bytecode = std.ArrayList(u8).init(allocator);
-                defer new_bytecode.deinit();
-                try new_bytecode.appendSlice(self.bytecode);
-                try new_bytecode.appendNTimes(0, 33);
-                return .{ .bytecode = try new_bytecode.toOwnedSlice(), .state = BytecodeState{ .Checked = .{ .len = self.bytecode.len } } };
+                var padded_bytecode = std.ArrayList(u8).init(allocator);
+                defer padded_bytecode.deinit();
+                try padded_bytecode.appendSlice(self.bytecode);
+                try padded_bytecode.appendNTimes(0, 33);
+                return .{ .bytecode = try padded_bytecode.toOwnedSlice(), .state = BytecodeState{ .Checked = .{ .len = self.bytecode.len } } };
             },
             else => self,
         };
