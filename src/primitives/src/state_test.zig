@@ -5,38 +5,6 @@ const constants = @import("./constants.zig");
 const bytecode = @import("./bytecode.zig");
 const bits = @import("./bits.zig");
 
-// test "Fibonacci with managed" {
-//     const begin = std.time.timestamp();
-
-//     const Managed = std.math.big.int.Managed;
-
-//     const allocator = std.heap.c_allocator;
-
-//     var a = try Managed.initSet(allocator, 0);
-//     defer a.deinit();
-
-//     var b = try Managed.initSet(allocator, 1);
-//     defer b.deinit();
-
-//     var c = try Managed.init(allocator);
-//     defer c.deinit();
-
-//     var i: u128 = 0;
-
-//     while (i < 1000000) : (i += 1) {
-//         try c.add(&a, &b);
-
-//         a.swap(&b);
-//         b.swap(&c);
-//     }
-
-//     const as = try a.toString(allocator, 10, std.fmt.Case.lower);
-//     defer allocator.free(as);
-
-//     const end = std.time.timestamp();
-//     std.debug.print("\nExecution time with managed: {any}\n", .{end - begin});
-// }
-
 test "State - StorageSlot : init" {
     var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
     defer managed_int.deinit();
@@ -247,8 +215,6 @@ test "AccountInfo: take_bytecode function" {
 }
 
 test "AccountInfo: from_balance function" {
-    var lb = [_]usize{ 100, 0, 0, 0 };
-    _ = lb;
     var buf: [1]u8 = .{0};
     var balance = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 100);
     defer balance.deinit();

@@ -115,10 +115,3 @@ pub const OutOfGasError = error{
     // i.e. in `as_usize_or_fail`
     InvalidOperand,
 };
-
-pub fn main() void {
-    var buf: [4]u8 = .{ 0, 0, 4, 0 };
-    var u = Output{ .Create = .{ .bytes = @as([]u8, @ptrCast(&buf)), .option = utils.Option(u64){ .Some = 67 } } };
-
-    std.debug.print("test = {any}\n", .{u});
-}

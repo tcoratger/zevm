@@ -1,4 +1,5 @@
 const std = @import("std");
+const bits = @import("./bits.zig");
 
 pub fn Option(comptime T: type) type {
     return union(enum) { None: bool, Some: T };
@@ -14,4 +15,10 @@ pub fn BigIntContext(comptime K: type) type {
         }
         pub const eql = std.hash_map.getAutoEqlFn(K, @This());
     };
+}
+
+pub fn keccak256(input: []const u8) bits.B256 {
+    var out: [32]u8 = undefined;
+    std.crypto.hash.sha3.Keccak256.hash(input, &out, .{});
+    return bits.B256{ .bytes = out };
 }
