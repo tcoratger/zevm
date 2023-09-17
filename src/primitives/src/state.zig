@@ -5,17 +5,32 @@ const constants = @import("./constants.zig");
 const utils = @import("./utils.zig");
 
 pub const StorageSlot = struct {
-    original_value: std.math.big.int.Mutable,
+    original_value: std.math.big.int.Managed,
     /// When loaded with sload present value is set to original value
-    present_value: std.math.big.int.Mutable,
+    present_value: std.math.big.int.Managed,
+
+    pub fn init(new_original_value: std.math.big.int.Managed) StorageSlot {
+        var self: StorageSlot = .{ .original_value = new_original_value, .present_value = new_original_value };
+
+        return self;
+    }
+
+    pub fn set(self: *StorageSlot, new_original_value: std.math.big.int.Managed) void {
+        self.original_value = new_original_value;
+        self.present_value = new_original_value;
+    }
+
+    pub fn is_changed(self: *StorageSlot) bool {
+        return self.original_value.eql(self.present_value);
+    }
 };
 
 pub const Account = struct {
     /// Balance of the account.
     info: AccountInfo,
     /// storage cache
-    storage: std.HashMap(std.math.big.int.Mutable, StorageSlot, utils.BigIntContext(std.math.big.int.Mutable), std.hash_map.default_max_load_percentage),
     // Account status flags.
+    storage: std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage),
     status: AccountStatus,
 
     /// Mark account as self destructed.
@@ -76,11 +91,14 @@ pub const Account = struct {
     }
 
     /// Create new account and mark it as non existing.
-    pub fn new_not_existing(allocator: std.mem.Allocator) Account {
-        var map = std.HashMap(std.math.big.int.Mutable, StorageSlot, utils.BigIntContext(std.math.big.int.Mutable), std.hash_map.default_max_load_percentage).init(allocator);
+    pub fn new_not_existing(allocator: std.mem.Allocator) !Account {
+        var map = std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(allocator);
         defer map.deinit();
+
+        var default_account = try AccountInfo.init();
+
         return Account{
-            .info = AccountInfo.default(),
+            .info = default_account,
             .storage = map,
             .status = AccountStatus{ .Loaded = false, .Created = false, .SelfDestructed = false, .Touched = false, .LoadedAsNotExisting = true },
         };
@@ -102,16 +120,15 @@ pub const AccountStatus = struct {
     /// it became same state after EIP-161: State trie clearing
     LoadedAsNotExisting: bool,
 
-    pub fn default() AccountStatus {
+    pub fn init() AccountStatus {
         return AccountStatus{ .Loaded = true, .Created = false, .SelfDestructed = false, .Touched = false, .LoadedAsNotExisting = false };
     }
 };
 
 /// AccountInfo account information.
 pub const AccountInfo = struct {
-    pub var limbs: [4]std.math.big.Limb = undefined;
     /// Account balance.
-    balance: std.math.big.int.Mutable,
+    balance: std.math.big.int.Managed,
     /// Account nonce.
     nonce: u64,
     /// code hash,
@@ -120,15 +137,18 @@ pub const AccountInfo = struct {
     /// inside of revm.
     code: utils.Option(bytecode.Bytecode),
 
-    pub fn default() AccountInfo {
-        return AccountInfo{ .balance = std.math.big.int.Mutable.init(&AccountInfo.limbs, 0), .nonce = 0, .code_hash = constants.Constants.KECCAK_EMPTY, .code = utils.Option(bytecode.Bytecode){ .Some = bytecode.Bytecode.new() } };
+    pub fn init() !AccountInfo {
+        var managed = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
+        defer managed.deinit();
+
+        return AccountInfo{ .balance = managed, .nonce = 0, .code_hash = constants.Constants.KECCAK_EMPTY, .code = utils.Option(bytecode.Bytecode){ .Some = bytecode.Bytecode.new() } };
     }
 
     pub fn eq(self: AccountInfo, other: AccountInfo) bool {
         return self.balance.toConst().eql(other.balance.toConst()) and self.nonce == other.nonce and self.code_hash.eql(other.code_hash);
     }
 
-    pub fn new(balance: std.math.big.int.Mutable, nonce: u64, code_hash: bits.B256, code: bytecode.Bytecode) AccountInfo {
+    pub fn new(balance: std.math.big.int.Managed, nonce: u64, code_hash: bits.B256, code: bytecode.Bytecode) AccountInfo {
         return AccountInfo{ .balance = balance, .nonce = nonce, .code_hash = code_hash, .code = utils.Option(bytecode.Bytecode){ .Some = code } };
     }
 
@@ -153,7 +173,7 @@ pub const AccountInfo = struct {
         return y;
     }
 
-    pub fn from_balance(balance: std.math.big.int.Mutable) AccountInfo {
+    pub fn from_balance(balance: std.math.big.int.Managed) AccountInfo {
         return AccountInfo{ .balance = balance, .nonce = 0, .code_hash = constants.Constants.KECCAK_EMPTY, .code = utils.Option(bytecode.Bytecode){ .Some = bytecode.Bytecode.new() } };
     }
 };

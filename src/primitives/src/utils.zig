@@ -7,7 +7,7 @@ pub fn Option(comptime T: type) type {
 
 pub fn BigIntContext(comptime K: type) type {
     return struct {
-        pub fn hash(self: @This(), b: std.math.big.int.Mutable) u64 {
+        pub fn hash(self: @This(), b: std.math.big.int.Managed) u64 {
             _ = b;
             _ = self;
             var hasher = std.hash.Wyhash.init(0);
