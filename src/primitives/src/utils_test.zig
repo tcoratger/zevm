@@ -14,3 +14,9 @@ test "Utils: create_address function" {
 
     try std.testing.expectEqual(try utils.create_address(bits.B160.from(1), 18_446_744_073_709_551_615, std.testing.allocator), bits.B160{ .bytes = [20]u8{ 0, 21, 103, 35, 151, 52, 174, 173, 234, 33, 2, 60, 42, 124, 13, 155, 185, 174, 74, 249 } });
 }
+
+test "Utils: u8_bytes_from_u64 function" {
+    try std.testing.expectEqual(utils.u8_bytes_from_u64(0), [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 });
+    try std.testing.expectEqual(utils.u8_bytes_from_u64(10), [8]u8{ 0, 0, 0, 0, 0, 0, 0, 10 });
+    try std.testing.expectEqual(utils.u8_bytes_from_u64(18_446_744_073_709_551_615), [8]u8{ 255, 255, 255, 255, 255, 255, 255, 255 });
+}
