@@ -1,6 +1,10 @@
 pub const JumpMap = struct {};
 const std = @import("std");
+const constants = @import("./constants.zig");
+const utils = @import("./utils.zig");
+const bits = @import("./bits.zig");
 
+/// State of the `Bytecode` analysis.
 pub const BytecodeState = union(enum) {
     /// No analysis has been performed.
     Raw,
@@ -19,11 +23,18 @@ pub const Bytecode = struct {
         return Self.new();
     }
 
+    /// Creates a new `Bytecode` with exactly one STOP opcode.
     pub fn new() Self {
         var buf: [1]u8 = .{0};
         return .{ .bytecode = buf[0..], .state = BytecodeState{ .Analysed = .{ .len = 0, .jump_map = JumpMap{} } } };
     }
 
+    /// Calculate hash of the bytecode.
+    pub fn hash_slow(self: Self) bits.B256 {
+        return if (self.is_empty()) constants.Constants.KECCAK_EMPTY else utils.keccak256(self.original_bytes());
+    }
+
+    /// Creates a new raw `Bytecode`.
     pub fn new_raw(bytecode: []u8) Self {
         return .{ .bytecode = bytecode, .state = BytecodeState.Raw };
     }
@@ -40,10 +51,12 @@ pub const Bytecode = struct {
         };
     }
 
+    /// Returns a reference to the bytecode.
     pub fn bytes(self: Self) []u8 {
         return self.bytecode;
     }
 
+    /// Returns a reference to the original bytecode.
     pub fn original_bytes(self: Self) []u8 {
         return switch (self.state) {
             .Raw => self.bytecode,
@@ -52,10 +65,12 @@ pub const Bytecode = struct {
         };
     }
 
+    /// Returns the [`BytecodeState`].
     pub fn state(self: Self) BytecodeState {
         return self.state;
     }
 
+    /// Returns whether the bytecode is empty.
     pub fn is_empty(self: Self) bool {
         return switch (self.state) {
             .Raw => self.bytecode.len == 0,
@@ -64,6 +79,7 @@ pub const Bytecode = struct {
         };
     }
 
+    /// Returns the length of the bytecode.
     pub fn get_len(self: Self) usize {
         return switch (self.state) {
             .Raw => self.bytecode.len,

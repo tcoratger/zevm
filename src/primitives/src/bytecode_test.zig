@@ -1,5 +1,7 @@
 const std = @import("std");
 const bytecode = @import("./bytecode.zig");
+const constants = @import("./constants.zig");
+const bits = @import("./bits.zig");
 
 test "Bytecode: new_raw function" {
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
@@ -37,9 +39,9 @@ test "Bytecode: state function" {
 
 test "Bytecode: is_empty function" {
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
-    try std.testing.expectEqual(bytecode.Bytecode.is_empty(bytecode.Bytecode.new_checked(buf[0..], 3)), false);
-    try std.testing.expectEqual(bytecode.Bytecode.is_empty(bytecode.Bytecode.new_raw(buf[0..0])), true);
-    try std.testing.expectEqual(bytecode.Bytecode.is_empty(bytecode.Bytecode.new_raw(buf[0..])), false);
+    try std.testing.expect(!bytecode.Bytecode.is_empty(bytecode.Bytecode.new_checked(buf[0..], 3)));
+    try std.testing.expect(bytecode.Bytecode.is_empty(bytecode.Bytecode.new_raw(buf[0..0])));
+    try std.testing.expect(!bytecode.Bytecode.is_empty(bytecode.Bytecode.new_raw(buf[0..])));
 }
 
 test "Bytecode: len function" {
@@ -56,4 +58,11 @@ test "Bytecode: to_check function" {
     var check = try bytecode.Bytecode.new_raw(buf[0..]).to_check(std.testing.allocator);
     defer std.mem.Allocator.free(std.testing.allocator, check.bytecode);
     try std.testing.expect(bytecode.Bytecode.eql(check, bytecode.Bytecode.new_checked(expected_buf[0..], 5)));
+}
+
+test "Bytecode: hash_slow function" {
+    var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
+    try std.testing.expectEqual(bytecode.Bytecode.new_raw(buf[0..0]).hash_slow(), constants.Constants.KECCAK_EMPTY);
+    const expected_hash = bits.B256{ .bytes = [32]u8{ 125, 135, 197, 234, 117, 247, 55, 139, 183, 1, 228, 4, 197, 6, 57, 22, 26, 243, 239, 246, 98, 147, 233, 243, 117, 181, 241, 126, 181, 4, 118, 244 } };
+    try std.testing.expectEqual(bytecode.Bytecode.new_raw(buf[0..]).hash_slow(), expected_hash);
 }
