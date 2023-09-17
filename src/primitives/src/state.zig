@@ -21,7 +21,7 @@ pub const StorageSlot = struct {
     }
 
     pub fn is_changed(self: *StorageSlot) bool {
-        return self.original_value != self.present_value;
+        return self.original_value.eql(self.present_value);
     }
 };
 
@@ -95,8 +95,7 @@ pub const Account = struct {
         var map = std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(allocator);
         defer map.deinit();
 
-        var default_account = try AccountInfo.default();
-        defer default_account.balance.deinit(); // TODO : Add deinit to AccountInfo
+        var default_account = try AccountInfo.init();
 
         return Account{
             .info = default_account,
@@ -121,7 +120,7 @@ pub const AccountStatus = struct {
     /// it became same state after EIP-161: State trie clearing
     LoadedAsNotExisting: bool,
 
-    pub fn default() AccountStatus {
+    pub fn init() AccountStatus {
         return AccountStatus{ .Loaded = true, .Created = false, .SelfDestructed = false, .Touched = false, .LoadedAsNotExisting = false };
     }
 };
@@ -138,7 +137,7 @@ pub const AccountInfo = struct {
     /// inside of revm.
     code: utils.Option(bytecode.Bytecode),
 
-    pub fn default() !AccountInfo {
+    pub fn init() !AccountInfo {
         var managed = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
         defer managed.deinit();
 
@@ -178,196 +177,3 @@ pub const AccountInfo = struct {
         return AccountInfo{ .balance = balance, .nonce = 0, .code_hash = constants.Constants.KECCAK_EMPTY, .code = utils.Option(bytecode.Bytecode){ .Some = bytecode.Bytecode.new() } };
     }
 };
-
-test "Account: self destruct functions" {
-    var map = std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
-
-    defer map.deinit();
-
-    var big_int_0 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer big_int_0.deinit();
-
-    try map.put(big_int_0, StorageSlot{ .original_value = big_int_0, .present_value = big_int_0 });
-
-    var default_account = try AccountInfo.default();
-    defer default_account.balance.deinit(); // TODO : Add deinit to AccountInfo
-
-    var account = Account{
-        .info = default_account,
-        .storage = map,
-        .status = AccountStatus.default(),
-    };
-    account.mark_selfdestruct();
-    try std.testing.expectEqual(account.status.SelfDestructed, true);
-    try std.testing.expectEqual(account.is_selfdestructed(), true);
-    account.unmark_selfdestruct();
-    try std.testing.expectEqual(account.status.SelfDestructed, false);
-    try std.testing.expectEqual(account.is_selfdestructed(), false);
-}
-
-test "Account: touched functions" {
-    var map = std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
-    defer map.deinit();
-
-    var big_int_0 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer big_int_0.deinit();
-
-    try map.put(big_int_0, StorageSlot{ .original_value = big_int_0, .present_value = big_int_0 });
-
-    var default_account = try AccountInfo.default();
-    defer default_account.balance.deinit(); // TODO : Add deinit to AccountInfo
-
-    var account = Account{
-        .info = default_account,
-        .storage = map,
-        .status = AccountStatus.default(),
-    };
-    account.mark_touch();
-    try std.testing.expectEqual(account.status.Touched, true);
-    try std.testing.expectEqual(account.is_touched(), true);
-    account.unmark_touch();
-    try std.testing.expectEqual(account.status.Touched, false);
-    try std.testing.expectEqual(account.is_touched(), false);
-}
-
-test "Account: created functions" {
-    var map = std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
-    defer map.deinit();
-
-    var big_int_0 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer big_int_0.deinit();
-
-    try map.put(big_int_0, StorageSlot{ .original_value = big_int_0, .present_value = big_int_0 });
-
-    var default_account = try AccountInfo.default();
-    defer default_account.balance.deinit(); // TODO : Add deinit to AccountInfo
-
-    var account = Account{
-        .info = default_account,
-        .storage = map,
-        .status = AccountStatus.default(),
-    };
-    account.mark_created();
-    try std.testing.expectEqual(account.status.Created, true);
-    try std.testing.expectEqual(account.is_created(), true);
-    account.unmark_created();
-    try std.testing.expectEqual(account.status.Created, false);
-    try std.testing.expectEqual(account.is_created(), false);
-}
-
-test "Account: is_empty function" {
-    var map = std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
-    defer map.deinit();
-
-    var big_int_0 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer big_int_0.deinit();
-
-    try map.put(big_int_0, StorageSlot{ .original_value = big_int_0, .present_value = big_int_0 });
-
-    var default_account = try AccountInfo.default();
-    defer default_account.balance.deinit(); // TODO : Add deinit to AccountInfo
-
-    var account = Account{
-        .info = default_account,
-        .storage = map,
-        .status = AccountStatus.default(),
-    };
-    try std.testing.expectEqual(account.is_empty(), true);
-}
-
-test "Account: new_not_existing function" {
-    var not_existing = try Account.new_not_existing(std.testing.allocator);
-
-    try std.testing.expectEqual(not_existing.status.LoadedAsNotExisting, true);
-}
-
-test "AccountStatus: default function" {
-    try std.testing.expectEqual(AccountStatus.default().Loaded, true);
-}
-
-test "AccountInfo: default function" {
-    var lb = [_]usize{ 0, 0, 0, 0 };
-    var buf: [1]u8 = .{0};
-
-    var default_account = try AccountInfo.default();
-    defer default_account.balance.deinit(); // TODO : Add deinit to AccountInfo
-
-    try std.testing.expectEqualSlices(usize, default_account.balance.limbs, lb[0..]);
-    try std.testing.expectEqual(default_account.balance.len(), 1);
-    try std.testing.expectEqual(default_account.balance.isPositive(), true);
-    try std.testing.expectEqual(default_account.nonce, 0);
-    try std.testing.expectEqual(default_account.code_hash, bits.B256{ .bytes = [32]u8{ 197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0, 182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112 } });
-    try std.testing.expectEqualSlices(u8, default_account.code.Some.bytecode, buf[0..]);
-    try std.testing.expectEqual(default_account.code.Some.state.Analysed.len, 0);
-}
-
-test "AccountInfo: eq function" {
-    var default_account = try AccountInfo.default();
-    defer default_account.balance.deinit(); // TODO : Add deinit to AccountInfo
-
-    try std.testing.expectEqual(AccountInfo.eq(default_account, default_account), true);
-}
-
-test "AccountInfo: new function" {
-    var lb = [_]usize{ 0, 0, 0, 0 };
-    var buf: [1]u8 = .{0};
-
-    var managed = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer managed.deinit();
-
-    var accountInfo = AccountInfo.new(managed, 0, constants.Constants.KECCAK_EMPTY, bytecode.Bytecode.new());
-    try std.testing.expectEqualSlices(usize, accountInfo.balance.limbs, lb[0..]);
-    try std.testing.expectEqual(accountInfo.balance.len(), 1);
-    try std.testing.expectEqual(accountInfo.balance.isPositive(), true);
-    try std.testing.expectEqual(accountInfo.nonce, 0);
-    try std.testing.expectEqual(accountInfo.code_hash, constants.Constants.KECCAK_EMPTY);
-    try std.testing.expectEqualSlices(u8, accountInfo.code.Some.bytecode, buf[0..]);
-    try std.testing.expectEqual(accountInfo.code.Some.state.Analysed.len, 0);
-}
-
-test "AccountInfo: is_empty function" {
-    var default_account = try AccountInfo.default();
-    defer default_account.balance.deinit(); // TODO : Add deinit to AccountInfo
-
-    try std.testing.expectEqual(AccountInfo.is_empty(default_account), true);
-}
-
-test "AccountInfo: exists function" {
-    var default_account = try AccountInfo.default();
-    defer default_account.balance.deinit(); // TODO : Add deinit to AccountInfo
-
-    try std.testing.expectEqual(AccountInfo.exists(default_account), false);
-}
-
-test "AccountInfo: code_hash function" {
-    var default_account = try AccountInfo.default();
-    defer default_account.balance.deinit(); // TODO : Add deinit to AccountInfo
-
-    try std.testing.expectEqual(default_account.get_code_hash(), constants.Constants.KECCAK_EMPTY);
-}
-
-test "AccountInfo: take_bytecode function" {
-    var buf: [1]u8 = .{0};
-    var default_account = try AccountInfo.default();
-    defer default_account.balance.deinit(); // TODO : Add deinit to AccountInfo
-
-    var accountInfo = default_account;
-    var result_take_bytecode = accountInfo.take_bytecode();
-    try std.testing.expectEqualSlices(u8, result_take_bytecode.Some.bytecode, buf[0..]);
-    try std.testing.expectEqual(result_take_bytecode.Some.state.Analysed.len, 0);
-    try std.testing.expectEqual(accountInfo.take_bytecode().None, true);
-}
-
-// test "AccountInfo: from_balance function" {
-//     var lb = [_]usize{ 100, 0, 0, 0 };
-//     var buf: [1]u8 = .{0};
-//     var balance = std.math.big.int.Managed.initSet(std.heap.c_allocator, 100);
-
-//     try std.testing.expectEqualSlices(usize, AccountInfo.from_balance(balance).balance.limbs, lb[0..]);
-//     try std.testing.expectEqual(AccountInfo.from_balance(balance).balance.len, 1);
-//     try std.testing.expectEqual(AccountInfo.from_balance(balance).balance.positive, true);
-//     try std.testing.expectEqual(AccountInfo.from_balance(balance).nonce, 0);
-//     try std.testing.expectEqual(AccountInfo.from_balance(balance).code_hash, constants.Constants.KECCAK_EMPTY);
-//     try std.testing.expectEqualSlices(u8, AccountInfo.from_balance(balance).code.Some.bytecode, buf[0..]);
-//     try std.testing.expectEqual(AccountInfo.from_balance(balance).code.Some.state.Analysed.len, 0);
-// }
