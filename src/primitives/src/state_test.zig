@@ -43,6 +43,30 @@ test "State - StorageSlot : is_changed" {
     try std.testing.expect(storage_slot.is_changed() == true);
 }
 
+test "State - StorageSlot : get_original_value" {
+    var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
+    defer managed_int.deinit();
+    var storage_slot = state.StorageSlot.init(managed_int);
+    try std.testing.expect(storage_slot.get_original_value().eql(managed_int));
+
+    var managed_int_2 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 2);
+    defer managed_int_2.deinit();
+    storage_slot.set(managed_int_2);
+    try std.testing.expect(storage_slot.get_original_value().eql(managed_int_2));
+}
+
+test "State - StorageSlot : get_present_value" {
+    var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
+    defer managed_int.deinit();
+    var storage_slot = state.StorageSlot.init(managed_int);
+    try std.testing.expect(storage_slot.get_present_value().eql(managed_int));
+
+    var managed_int_2 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 2);
+    defer managed_int_2.deinit();
+    storage_slot.set(managed_int_2);
+    try std.testing.expect(storage_slot.get_present_value().eql(managed_int_2));
+}
+
 test "Account: self destruct functions" {
     var map = std.HashMap(std.math.big.int.Managed, state.StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
 

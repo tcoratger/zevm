@@ -5,23 +5,31 @@ const constants = @import("./constants.zig");
 const utils = @import("./utils.zig");
 
 pub const StorageSlot = struct {
+    const Self = @This();
+
     original_value: std.math.big.int.Managed,
     /// When loaded with sload present value is set to original value
     present_value: std.math.big.int.Managed,
 
-    pub fn init(new_original_value: std.math.big.int.Managed) StorageSlot {
-        var self: StorageSlot = .{ .original_value = new_original_value, .present_value = new_original_value };
-
-        return self;
+    pub fn init(new_original_value: std.math.big.int.Managed) Self {
+        return .{ .original_value = new_original_value, .present_value = new_original_value };
     }
 
-    pub fn set(self: *StorageSlot, new_original_value: std.math.big.int.Managed) void {
+    pub fn set(self: *Self, new_original_value: std.math.big.int.Managed) void {
         self.original_value = new_original_value;
         self.present_value = new_original_value;
     }
 
-    pub fn is_changed(self: *StorageSlot) bool {
+    pub fn is_changed(self: *Self) bool {
         return self.original_value.eql(self.present_value);
+    }
+
+    pub fn get_original_value(self: Self) std.math.big.int.Managed {
+        return self.original_value;
+    }
+
+    pub fn get_present_value(self: Self) std.math.big.int.Managed {
+        return self.present_value;
     }
 };
 
