@@ -3,14 +3,18 @@ const bytecode = @import("./bytecode.zig");
 
 test "Bytecode: new_raw function" {
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
-    try std.testing.expectEqual(bytecode.Bytecode.new_raw(buf[0..]).bytecode, buf[0..]);
-    try std.testing.expectEqual(bytecode.Bytecode.new_raw(buf[0..]).state, bytecode.BytecodeState.Raw);
+    try std.testing.expect(bytecode.Bytecode.eql(bytecode.Bytecode.new_raw(buf[0..]), bytecode.Bytecode{ .bytecode = buf[0..], .state = bytecode.BytecodeState.Raw }));
 }
 
 test "Bytecode: new_checked function" {
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
     try std.testing.expectEqual(bytecode.Bytecode.new_checked(buf[0..], 10).bytecode, buf[0..]);
     try std.testing.expectEqual(bytecode.Bytecode.new_checked(buf[0..], 10).state, bytecode.BytecodeState{ .Checked = .{ .len = 10 } });
+
+    try std.testing.expect(bytecode.Bytecode.eql(bytecode.Bytecode.new_checked(buf[0..], 10), bytecode.Bytecode{
+        .bytecode = buf[0..],
+        .state = bytecode.BytecodeState{ .Checked = .{ .len = 10 } },
+    }));
 }
 
 test "Bytecode: bytes function" {
@@ -51,5 +55,5 @@ test "Bytecode: to_check function" {
 
     var check = try bytecode.Bytecode.new_raw(buf[0..]).to_check(std.testing.allocator);
     defer std.mem.Allocator.free(std.testing.allocator, check.bytecode);
-    try std.testing.expectEqual(bytecode.Bytecode.eql(check, bytecode.Bytecode.new_checked(expected_buf[0..], 5)), true);
+    try std.testing.expect(bytecode.Bytecode.eql(check, bytecode.Bytecode.new_checked(expected_buf[0..], 5)));
 }
