@@ -77,3 +77,31 @@ pub fn create2_address(caller: bits.B160, code_hash: bits.B256, salt: std.math.b
     h.final(&out);
     return bits.B160{ .bytes = out[12..].* };
 }
+
+/// Approximates `factor * e ** (numerator / denominator)` using Taylor expansion.
+///
+/// This is used to calculate the blob price.
+///
+/// See also [the EIP-4844 helpers](https://eips.ethereum.org/EIPS/eip-4844#helpers).
+///
+/// # Panic
+///
+/// Panics if `denominator` is zero.
+pub fn fake_exponential(factor: u64, numerator: u64, denominator: u64) u64 {
+    std.debug.assert(denominator != 0);
+    const f: u128 = @intCast(factor);
+    const n: u128 = @intCast(numerator);
+    const d: u128 = @intCast(denominator);
+
+    var i: u128 = 1;
+    var output: u128 = 0;
+    var numerator_accum = f * d;
+
+    while (numerator_accum > 0) : (i += 1) {
+        output += numerator_accum;
+        // Denominator is asserted as not zero at the start of the function.
+        numerator_accum = (numerator_accum * n) / (d * i);
+    }
+
+    return @intCast(output / denominator);
+}

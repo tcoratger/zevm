@@ -28,3 +28,22 @@ test "Utils: create2_address function" {
 
     try std.testing.expectEqual(try utils.create2_address(bits.B160.from(1000), bits.B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } }, salt, std.testing.allocator), bits.B160{ .bytes = [20]u8{ 142, 250, 209, 93, 4, 51, 82, 199, 205, 81, 218, 25, 155, 148, 82, 184, 92, 44, 84, 254 } });
 }
+
+test "Utils: fake_exponential function" {
+    try std.testing.expect(utils.fake_exponential(1, 0, 1) == 1);
+    try std.testing.expect(utils.fake_exponential(38493, 0, 1000) == 38493);
+    try std.testing.expect(utils.fake_exponential(0, 1234, 2345) == 0);
+    try std.testing.expect(utils.fake_exponential(1, 2, 1) == 6); // approximate 7.389
+    try std.testing.expect(utils.fake_exponential(1, 4, 2) == 6);
+    try std.testing.expect(utils.fake_exponential(1, 3, 1) == 16); // approximate 20.09
+    try std.testing.expect(utils.fake_exponential(1, 6, 2) == 18);
+    try std.testing.expect(utils.fake_exponential(1, 4, 1) == 49); // approximate 54.60
+    try std.testing.expect(utils.fake_exponential(1, 8, 2) == 50);
+    try std.testing.expect(utils.fake_exponential(10, 8, 2) == 542); // approximate 540.598
+    try std.testing.expect(utils.fake_exponential(11, 8, 2) == 596); // approximate 600.58
+    try std.testing.expect(utils.fake_exponential(1, 5, 1) == 136); // approximate 148.4
+    try std.testing.expect(utils.fake_exponential(1, 5, 2) == 11); // approximate 12.18
+    try std.testing.expect(utils.fake_exponential(2, 5, 2) == 23); // approximate 24.36
+    try std.testing.expect(utils.fake_exponential(1, 50000000, 2225652) == 5709098764);
+    try std.testing.expect(utils.fake_exponential(1, 380928, constants.Constants.BLOB_GASPRICE_UPDATE_FRACTION) == 1);
+}
