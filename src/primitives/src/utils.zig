@@ -56,3 +56,24 @@ pub fn create_address(caller: bits.B160, nonce: u64, allocator: std.mem.Allocato
 
     return bits.B160{ .bytes = keccak256(slice).bytes[12..].* };
 }
+
+/// Returns the address for the `CREATE2` scheme
+pub fn create2_address(caller: bits.B160, code_hash: bits.B256, salt: std.math.big.int.Managed, allocator: std.mem.Allocator) !bits.B160 {
+    var out: [32]u8 = undefined;
+    var h = std.crypto.hash.sha3.Keccak256.init(.{});
+    h.update(&[1]u8{0xff});
+    h.update(&caller.bytes);
+
+    var salt_bytes = std.ArrayList(u8).init(allocator);
+    defer salt_bytes.deinit();
+    const salt_limbs = salt.toConst().limbs;
+    var nbr_limbs = salt_limbs.len;
+    try salt_bytes.appendNTimes(0, 8 * (salt.limbs.len - nbr_limbs));
+    while (nbr_limbs > 0) : (nbr_limbs -= 1) {
+        try salt_bytes.appendSlice(&u8_bytes_from_u64(salt_limbs[nbr_limbs - 1]));
+    }
+    h.update(salt_bytes.items);
+    h.update(&code_hash.bytes);
+    h.final(&out);
+    return bits.B160{ .bytes = out[12..].* };
+}

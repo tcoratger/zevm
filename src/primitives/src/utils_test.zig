@@ -20,3 +20,11 @@ test "Utils: u8_bytes_from_u64 function" {
     try std.testing.expectEqual(utils.u8_bytes_from_u64(10), [8]u8{ 0, 0, 0, 0, 0, 0, 0, 10 });
     try std.testing.expectEqual(utils.u8_bytes_from_u64(18_446_744_073_709_551_615), [8]u8{ 255, 255, 255, 255, 255, 255, 255, 255 });
 }
+
+test "Utils: create2_address function" {
+    var salt = try std.math.big.int.Managed.initSet(std.testing.allocator, 10000000000000000000000000000000);
+    defer salt.deinit();
+    try std.testing.expectEqual(try utils.create2_address(bits.B160.from(18_446_744_073_709_551_615), bits.B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } }, salt, std.testing.allocator), bits.B160{ .bytes = [20]u8{ 21, 108, 197, 97, 104, 190, 154, 181, 81, 131, 139, 5, 178, 141, 203, 240, 157, 66, 125, 96 } });
+
+    try std.testing.expectEqual(try utils.create2_address(bits.B160.from(1000), bits.B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } }, salt, std.testing.allocator), bits.B160{ .bytes = [20]u8{ 142, 250, 209, 93, 4, 51, 82, 199, 205, 81, 218, 25, 155, 148, 82, 184, 92, 44, 84, 254 } });
+}
