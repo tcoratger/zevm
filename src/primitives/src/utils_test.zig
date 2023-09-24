@@ -65,3 +65,12 @@ test "Utils: calc_excess_blob_gas function" {
     try std.testing.expect(utils.calc_excess_blob_gas(constants.Constants.TARGET_BLOB_GAS_PER_BLOCK, ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) - 2) * constants.Constants.GAS_PER_BLOB) == constants.Constants.TARGET_BLOB_GAS_PER_BLOCK - (2 * constants.Constants.GAS_PER_BLOB));
     try std.testing.expect(utils.calc_excess_blob_gas(constants.Constants.GAS_PER_BLOB - 1, ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) - 1) * constants.Constants.GAS_PER_BLOB) == 0);
 }
+
+test "Utils: calc_blob_gasprice function" {
+    // https://github.com/ethereum/go-ethereum/blob/28857080d732857030eda80c69b9ba2c8926f221/consensus/misc/eip4844/eip4844_test.go#L60
+
+    try std.testing.expect(utils.calc_blob_gasprice(0) == 1);
+    try std.testing.expect(utils.calc_blob_gasprice(2314057) == 1);
+    try std.testing.expect(utils.calc_blob_gasprice(2314058) == 2);
+    try std.testing.expect(utils.calc_blob_gasprice(10 * 1024 * 1024) == 23);
+}

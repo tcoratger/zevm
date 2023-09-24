@@ -85,6 +85,13 @@ pub fn calc_excess_blob_gas(parent_excess_blob_gas: u64, parent_blob_gas_used: u
     return (parent_excess_blob_gas + parent_blob_gas_used) -| constants.Constants.TARGET_BLOB_GAS_PER_BLOCK;
 }
 
+/// Calculates the blob gasprice from the header's excess blob gas field.
+///
+/// See also [the EIP-4844 helpers](https://eips.ethereum.org/EIPS/eip-4844#helpers).
+pub fn calc_blob_gasprice(excess_blob_gas: u64) u64 {
+    return fake_exponential(constants.Constants.MIN_BLOB_GASPRICE, excess_blob_gas, constants.Constants.BLOB_GASPRICE_UPDATE_FRACTION);
+}
+
 /// Approximates `factor * e ** (numerator / denominator)` using Taylor expansion.
 ///
 /// This is used to calculate the blob price.
