@@ -50,7 +50,7 @@ pub const TxEnv = struct {
     /// Added in [EIP-2930].
     ///
     /// [EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
-    access_list: std.ArrayList(.{ bits.B160, std.ArrayList(std.math.big.int.Managed) }),
+    access_list: std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(std.math.big.int.Managed) })),
     /// The priority fee per gas.
     ///
     /// Incorporated as part of the London upgrade via [EIP-1559].
@@ -70,6 +70,31 @@ pub const TxEnv = struct {
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
     max_fee_per_blob_gas: utils.Option(std.math.big.int.Managed),
+
+    pub fn default(allocator: std.mem.Allocator) !Self {
+        var gas_price_default = try std.math.big.int.Managed.initSet(allocator, 0);
+        var value_default = try std.math.big.int.Managed.initSet(allocator, 0);
+        var access_list_default = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(std.math.big.int.Managed) })).init(allocator);
+        var blob_hashes_default = std.ArrayList(bits.B256).init(allocator);
+        defer gas_price_default.deinit();
+        defer value_default.deinit();
+        defer access_list_default.deinit();
+        defer blob_hashes_default.deinit();
+        return .{
+            .caller = bits.B160.from(0),
+            .gas_limit = constants.Constants.UINT_64_MAX,
+            .gas_price = gas_price_default,
+            .gas_priority_fee = utils.Option(std.math.big.int.Managed){ .None = true },
+            .transact_to = TransactTo{ .Call = .{ .to = bits.B160.from(0) } },
+            .value = value_default,
+            .data = undefined,
+            .chain_id = utils.Option(u64){ .None = true },
+            .nonce = utils.Option(u64){ .None = true },
+            .access_list = access_list_default,
+            .blob_hashes = blob_hashes_default,
+            .max_fee_per_blob_gas = utils.Option(std.math.big.int.Managed){ .None = true },
+        };
+    }
 
     /// See [EIP-4844] and [`Env::calc_data_fee`].
     ///
