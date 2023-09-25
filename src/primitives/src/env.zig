@@ -16,10 +16,35 @@ pub const CreateScheme = union(enum) {
 
 /// Transaction destination.
 pub const TransactTo = union(enum) {
+    const Self = @This();
+
     /// Simple call to an address.
     Call: struct { to: bits.B160 },
     /// Contract creation.
     Create: struct { scheme: CreateScheme },
+
+    /// Calls the given address.
+    pub fn call(address: bits.B160) Self {
+        return .{ .Call = .{ .to = address } };
+    }
+
+    /// Creates a contract.
+    pub fn create() Self {
+        return .{ .Create = .{ .scheme = CreateScheme.Create } };
+    }
+
+    /// Creates a contract with the given salt using `CREATE2`.
+    pub fn create2(salt: std.math.big.int.Managed) Self {
+        return .{ .Create = .{ .scheme = CreateScheme{ .Create2 = .{ .salt = salt } } } };
+    }
+
+    /// Returns `true` if the transaction is `Call`.
+    pub fn is_call(self: *Self) bool {
+        return switch (self.*) {
+            .Call => true,
+            else => false,
+        };
+    }
 };
 
 pub const TxEnv = struct {
