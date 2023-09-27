@@ -45,6 +45,14 @@ pub const TransactTo = union(enum) {
             else => false,
         };
     }
+
+    /// Returns `true` if the transaction is `Create` or `Create2`.
+    pub fn is_create(self: *Self) bool {
+        return switch (self.*) {
+            .Create => true,
+            else => false,
+        };
+    }
 };
 
 pub const TxEnv = struct {

@@ -32,3 +32,16 @@ test "TransactTo: is_call function" {
     var call = env.TransactTo.call(bits.B160.from(18_446_744_073_709_551_615));
     try std.testing.expect(call.is_call());
 }
+
+test "TransactTo: is_create function" {
+    var create = env.TransactTo.create();
+    try std.testing.expect(create.is_create());
+
+    var call = env.TransactTo.call(bits.B160.from(18_446_744_073_709_551_615));
+    try std.testing.expect(!call.is_create());
+
+    var salt_mock = try std.math.big.int.Managed.initSet(std.testing.allocator, 10000000000000000000000000000000);
+    defer salt_mock.deinit();
+    var create2 = env.TransactTo.create2(salt_mock);
+    try std.testing.expect(create2.is_create());
+}
