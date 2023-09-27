@@ -1,6 +1,11 @@
 const std = @import("std");
 const bits = @import("./bits.zig");
 
+pub const BlobExcessGasAndPrice = struct {
+    excess_blob_gas: u64,
+    excess_blob_gasprice: u64,
+};
+
 pub const BlockEnv = struct {
     const Self = @This();
 
@@ -17,17 +22,29 @@ pub const BlockEnv = struct {
     // The output of the randomness beacon provided by the beacon chain
     prev_randao: ?bits.B256,
     // Excess blob gas. See also ['calc_express_blob_gas']
-    express_blob_gas: ?u64,
+    excess_blob_gas: ?BlobExcessGasAndPrice,
 
-    pub fn init() Self {
+    pub fn init() !Self {
         return .{
-            .number = std.math.big.int.from_u64(0),
-            .coinbase = bits.B160.from_u64(0),
-            .timestamp = std.math.big.int.from_u64(0),
-            .gas_limit = std.math.big.int.from_u64(0),
-            .base_fee = std.math.big.int.from_u64(0),
+            .number = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
+            .coinbase = bits.B160.from(0),
+            .timestamp = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
+            .gas_limit = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
+            .base_fee = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
             .prev_randao = null,
-            .express_blob_gas = null,
+            .excess_blob_gas = null,
         };
+    }
+
+    pub fn set_blob_excess_gas_and_price(self: *Self, excess_blob_gas: u64) void {
+        self.excess_blob_gas = .{.excess_blob_gas = excess_blob_gas, .excess_blob_gasprice = 0};
+    }
+
+    pub fn get_blob_gasprice(self: Self) ?u64 {
+        return self.excess_blob_gas.?.excess_blob_gasprice;
+    }
+
+    pub fn get_blob_excess_gas(self: Self) ?u64 {
+        return self.excess_blob_gas.?.excess_blob_gas;
     }
 };
