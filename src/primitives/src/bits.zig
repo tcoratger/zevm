@@ -1,34 +1,73 @@
 const std = @import("std");
+const utils = @import("./utils.zig");
 
 /// zevm 256 bits type.
 pub const B256 = struct {
+    const Self = @This();
+
     bytes: [32]u8,
 
-    pub fn zero() B256 {
-        return B256{ .bytes = [_]u8{0} ** 32 };
+    pub fn zero() Self {
+        return .{ .bytes = [_]u8{0} ** 32 };
     }
 
-    pub fn serialize(self: B256) ![]const u8 {
+    pub fn is_zero(self: Self) bool {
+        return self.eql(Self.zero());
+    }
+
+    pub fn serialize(self: Self) ![]const u8 {
         var slice = [_]u8{0} ** (2 + 2 * 32);
         return Serialize.serialize_raw(&slice, &self.bytes);
     }
 
-    pub fn eql(self: B256, other: B256) bool {
+    pub fn eql(self: Self, other: Self) bool {
         return std.mem.eql(u8, &self.bytes, &other.bytes);
+    }
+
+    pub fn from(fr: std.math.big.int.Managed, allocator: std.mem.Allocator) !Self {
+        var fr_bytes = std.ArrayList(u8).init(allocator);
+        defer fr_bytes.deinit();
+
+        const fr_limbs = fr.toConst().limbs;
+        var nbr_limbs = fr_limbs.len;
+
+        std.debug.assert(nbr_limbs <= 4);
+
+        try fr_bytes.appendNTimes(0, 32 - 8 * nbr_limbs);
+
+        while (nbr_limbs > 0) : (nbr_limbs -= 1) {
+            try fr_bytes.appendSlice(&utils.u8_bytes_from_u64(fr_limbs[nbr_limbs - 1]));
+        }
+
+        return .{ .bytes = fr_bytes.items[0..32].* };
     }
 };
 
 /// zevm 256 bits type.
 pub const B160 = struct {
+    const Self = @This();
     pub const bytes_len: usize = 20;
+
     bytes: [bytes_len]u8,
 
-    pub fn from(fr: u64) B160 {
+    pub fn zero() Self {
+        return .{ .bytes = [_]u8{0} ** 20 };
+    }
+
+    pub fn is_zero(self: Self) bool {
+        return self.eql(Self.zero());
+    }
+
+    pub fn from(fr: u64) Self {
         // Big endian byte order
-        return B160{ .bytes = [bytes_len]u8{
+        return .{ .bytes = [bytes_len]u8{
             0,                           0,                           0,                           0,                           0,                           0,                           0,                          0,                   0, 0, 0, 0,
             @intCast((fr >> 56) & 0xFF), @intCast((fr >> 48) & 0xFF), @intCast((fr >> 40) & 0xFF), @intCast((fr >> 32) & 0xFF), @intCast((fr >> 24) & 0xFF), @intCast((fr >> 16) & 0xFF), @intCast((fr >> 8) & 0xFF), @intCast(fr & 0xFF),
         } };
+    }
+
+    pub fn eql(self: Self, other: Self) bool {
+        return std.mem.eql(u8, &self.bytes, &other.bytes);
     }
 };
 
