@@ -22,43 +22,65 @@ pub const BlobExcessGasAndPrice = struct {
 pub const BlockEnv = struct {
     const Self = @This();
 
-    // The number of ancestor blocks of this block (block height)
+    /// The number of ancestor blocks of this block (block height)
     number: std.math.big.int.Managed,
-    // The miner or the address that created and signed this block
+    /// Coinbase or miner or address that created and signed the block.
+    ///
+    /// This is the receiver address of all the gas spent in the block.
     coinbase: bits.B160,
-    // The timestamp of the block
+    /// The timestamp of the block in seconds since the UNIX epoch.
     timestamp: std.math.big.int.Managed,
-    // The gas limit of the block
+    /// The gas limit of the block
     gas_limit: std.math.big.int.Managed,
-    // The base fee per gas, added in the London upgrade with [EIP-1559]
+    /// The base fee per gas, added in the London upgrade with [EIP-1559].
+    ///
+    /// [EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
     base_fee: std.math.big.int.Managed,
-    // The output of the randomness beacon provided by the beacon chain
+    /// The difficulty of the block.
+    ///
+    /// Unused after the Paris (AKA the merge) upgrade, and replaced by `prevrandao`.
+    difficulty: std.math.big.int.Managed,
+    /// The output of the randomness beacon provided by the beacon chain.
+    ///
+    /// Replaces `difficulty` after the Paris (AKA the merge) upgrade with [EIP-4399].
+    ///
+    /// NOTE: `prevrandao` can be found in a block in place of `mix_hash`.
+    ///
+    /// [EIP-4399]: https://eips.ethereum.org/EIPS/eip-4399
     prev_randao: ?bits.B256,
-    // Excess blob gas. See also ['calc_express_blob_gas']
-    excess_blob_gas: ?BlobExcessGasAndPrice,
+    /// Excess blob gas and blob gasprice.
+    /// See also [`calc_excess_blob_gas`](crate::calc_excess_blob_gas)
+    /// and [`calc_blob_gasprice`](crate::calc_blob_gasprice).
+    ///
+    /// Incorporated as part of the Cancun upgrade via [EIP-4844].
+    ///
+    /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
+    blob_excess_gas_and_price: ?BlobExcessGasAndPrice,
 
-    pub fn init() !Self {
+    /// Returns the "default value" for each type.
+    pub fn default() !Self {
         return .{
             .number = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
             .coinbase = bits.B160.from(0),
             .timestamp = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
             .gas_limit = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
             .base_fee = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
-            .prev_randao = null,
-            .excess_blob_gas = null,
+            .difficulty = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
+            .prev_randao = bits.B256.zero(),
+            .blob_excess_gas_and_price = BlobExcessGasAndPrice.new(0),
         };
     }
 
     pub fn set_blob_excess_gas_and_price(self: *Self, excess_blob_gas: u64) void {
-        self.excess_blob_gas = .{ .excess_blob_gas = excess_blob_gas, .excess_blob_gasprice = 0 };
+        self.blob_excess_gas_and_price = .{ .excess_blob_gas = excess_blob_gas, .excess_blob_gasprice = 0 };
     }
 
     pub fn get_blob_gasprice(self: Self) ?u64 {
-        return self.excess_blob_gas.?.excess_blob_gasprice;
+        return self.blob_excess_gas_and_price.?.excess_blob_gasprice;
     }
 
     pub fn get_blob_excess_gas(self: Self) ?u64 {
-        return self.excess_blob_gas.?.excess_blob_gas;
+        return self.blob_excess_gas_and_price.?.excess_blob_gas;
     }
 };
 

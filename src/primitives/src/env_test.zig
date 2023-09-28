@@ -5,7 +5,7 @@ const utils = @import("./utils.zig");
 const constants = @import("./constants.zig");
 
 test "Block env: Init" {
-    const block_env = try env.BlockEnv.init();
+    const block_env = try env.BlockEnv.default();
 
     var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
     defer managed_int.deinit();
@@ -14,19 +14,21 @@ test "Block env: Init" {
     try std.testing.expect(block_env.number.eql(managed_int));
     try std.testing.expect(block_env.timestamp.eql(managed_int));
     try std.testing.expect(block_env.gas_limit.eql(managed_int));
-    try std.testing.expect(block_env.excess_blob_gas == null);
+    try std.testing.expect(block_env.difficulty.eql(managed_int));
+    try std.testing.expect(block_env.blob_excess_gas_and_price.?.eql(env.BlobExcessGasAndPrice{ .excess_blob_gas = 0, .excess_blob_gasprice = 1 }));
     try std.testing.expectEqual(block_env.coinbase, bits.B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } });
+    try std.testing.expect(block_env.prev_randao.?.is_zero());
 }
 
 test "Block env: set_blob_excess_gas_and_price and get_blob_excess_gas" {
-    var block_env = try env.BlockEnv.init();
+    var block_env = try env.BlockEnv.default();
 
     var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
     defer managed_int.deinit();
 
     block_env.set_blob_excess_gas_and_price(10);
 
-    try std.testing.expectEqual(block_env.excess_blob_gas.?.excess_blob_gas, 10);
+    try std.testing.expectEqual(block_env.blob_excess_gas_and_price.?.excess_blob_gas, 10);
     try std.testing.expectEqual(block_env.get_blob_excess_gas(), 10);
     try std.testing.expectEqual(block_env.get_blob_gasprice(), 0);
 }
