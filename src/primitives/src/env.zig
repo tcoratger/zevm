@@ -2,6 +2,8 @@ const std = @import("std");
 const bits = @import("./bits.zig");
 const utils = @import("./utils.zig");
 const constants = @import("./constants.zig");
+const specifications = @import("./specifications.zig");
+const kzg_env = @import("./kzg/env_settings.zig");
 
 pub const BlobExcessGasAndPrice = struct {
     const Self = @This();
@@ -71,14 +73,26 @@ pub const BlockEnv = struct {
         };
     }
 
+    /// Takes `blob_excess_gas` saves it inside env
+    /// and calculates `blob_fee` with [`BlobGasAndFee`].
     pub fn set_blob_excess_gas_and_price(self: *Self, excess_blob_gas: u64) void {
         self.blob_excess_gas_and_price = .{ .excess_blob_gas = excess_blob_gas, .excess_blob_gasprice = 0 };
     }
 
+    /// See [EIP-4844] and [`crate::calc_blob_gasprice`].
+    ///
+    /// Returns `None` if `Cancun` is not enabled. This is enforced in [`Env::validate_block_env`].
+    ///
+    /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
     pub fn get_blob_gasprice(self: Self) ?u64 {
         return self.blob_excess_gas_and_price.?.excess_blob_gasprice;
     }
 
+    /// Return `blob_excess_gas` header field. See [EIP-4844].
+    ///
+    /// Returns `None` if `Cancun` is not enabled. This is enforced in [`Env::validate_block_env`].
+    ///
+    /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
     pub fn get_blob_excess_gas(self: Self) ?u64 {
         return self.blob_excess_gas_and_price.?.excess_blob_gas;
     }
@@ -215,5 +229,87 @@ pub const TxEnv = struct {
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
     pub fn get_total_blob_gas(self: *Self) u64 {
         return constants.Constants.GAS_PER_BLOB * @as(u64, self.blob_hashes.items.len);
+    }
+};
+
+/// Enumeration representing analysis options for bytecode.
+pub const AnalysisKind = enum {
+    /// Do not perform bytecode analysis.
+    Raw,
+    /// Check the bytecode for validity.
+    Check,
+    /// Perform bytecode analysis.
+    Analyze,
+};
+
+/// Configuration Environment Structure
+pub const CfgEnv = struct {
+    const Self = @This();
+
+    /// Unique identifier for the blockchain chain.
+    chain_id: u64,
+    /// Specification identifier.
+    spec_id: specifications.SpecId,
+    /// KZG Settings for point evaluation precompile. By default, loaded from the Ethereum mainnet trusted setup.
+    kzg_settings: kzg_env.EnvKzgSettings,
+    /// Bytecode that is created with CREATE/CREATE2 is by default analyzed, and a jumptable is created.
+    ///
+    /// This is very beneficial for testing and speeds up execution of that bytecode if called multiple times.
+    /// Default: Analyze
+    perf_analyze_created_bytecodes: AnalysisKind,
+    /// If some it will affect EIP-170: Contract code size limit. Useful to increase this because of tests.
+    /// Default: 0x6000 (~25kb)
+    limit_contract_code_size: ?usize,
+    /// Disables the coinbase tip during the finalization of the transaction. Useful for rollups that redirect the tip to the sequencer.
+    disable_coinbase_tip: bool,
+    /// A hard memory limit in bytes beyond which [Memory] cannot be resized.
+    ///
+    /// In cases where the gas limit may be extraordinarily high, it is recommended to set this to
+    /// a sane value to prevent memory allocation panics. Defaults to `2^32 - 1` bytes per EIP-1985.
+    memory_limit: u64,
+    /// Skip balance checks if true. Adds transaction cost to balance to ensure execution doesn't fail.
+    disable_balance_check: bool,
+    /// There are use cases where it's allowed to provide a gas limit that's higher than a block's gas limit. To that
+    /// end, you can disable the block gas limit validation.
+    ///
+    /// By default, it is set to `false`.
+    disable_block_gas_limit: bool,
+    /// EIP-3607 rejects transactions from senders with deployed code. In development, it can be desirable to simulate
+    /// calls from contracts, which this setting allows.
+    ///
+    /// By default, it is set to `false`.
+    disable_eip3607: bool,
+    /// Disables all gas refunds. This is useful when using chains that have gas refunds disabled e.g. Avalanche.
+    ///
+    /// Reasoning behind removing gas refunds can be found in EIP-3298.
+    /// By default, it is set to `false`.
+    disable_gas_refund: bool,
+    /// Disables base fee checks for EIP-1559 transactions.
+    /// This is useful for testing method calls with zero gas price.
+    disable_base_fee: bool,
+
+    /// Returns `true` if EIP-3607 check is disabled.
+    pub fn is_eip3607_disabled(self: Self) bool {
+        return self.disable_eip3607;
+    }
+
+    /// Returns `true` if balance checks are disabled.
+    pub fn is_balance_check_disabled(self: Self) bool {
+        self.disable_balance_check;
+    }
+
+    /// Returns `true` if gas refunds are disabled.
+    pub fn is_gas_refund_disabled(self: Self) bool {
+        self.disable_gas_refund;
+    }
+
+    /// Returns `true` if base fee checks for EIP-1559 transactions are disabled.
+    pub fn is_base_fee_check_disabled(self: Self) bool {
+        self.disable_base_fee;
+    }
+
+    /// Returns `true` if block gas limit validation is disabled.
+    pub fn is_block_gas_limit_disabled(self: Self) bool {
+        return self.disable_block_gas_limit;
     }
 };
