@@ -4,8 +4,19 @@ const utils = @import("./utils.zig");
 const constants = @import("./constants.zig");
 
 pub const BlobExcessGasAndPrice = struct {
+    const Self = @This();
+
     excess_blob_gas: u64,
     excess_blob_gasprice: u64,
+
+    /// Takes excess blob gas and calculated blob fee with [`calc_blob_fee`]
+    pub fn new(excess_blob_gas: u64) Self {
+        return .{ .excess_blob_gas = excess_blob_gas, .excess_blob_gasprice = utils.calc_blob_gasprice(excess_blob_gas) };
+    }
+
+    pub fn eql(self: Self, other: Self) bool {
+        return self.excess_blob_gas == other.excess_blob_gas and self.excess_blob_gasprice == other.excess_blob_gasprice;
+    }
 };
 
 pub const BlockEnv = struct {
@@ -39,7 +50,7 @@ pub const BlockEnv = struct {
     }
 
     pub fn set_blob_excess_gas_and_price(self: *Self, excess_blob_gas: u64) void {
-        self.excess_blob_gas = .{.excess_blob_gas = excess_blob_gas, .excess_blob_gasprice = 0};
+        self.excess_blob_gas = .{ .excess_blob_gas = excess_blob_gas, .excess_blob_gasprice = 0 };
     }
 
     pub fn get_blob_gasprice(self: Self) ?u64 {

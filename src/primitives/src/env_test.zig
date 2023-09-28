@@ -4,7 +4,7 @@ const bits = @import("./bits.zig");
 const utils = @import("./utils.zig");
 const constants = @import("./constants.zig");
 
-test "Block env: Init"{
+test "Block env: Init" {
     const block_env = try env.BlockEnv.init();
 
     var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
@@ -15,10 +15,10 @@ test "Block env: Init"{
     try std.testing.expect(block_env.timestamp.eql(managed_int));
     try std.testing.expect(block_env.gas_limit.eql(managed_int));
     try std.testing.expect(block_env.excess_blob_gas == null);
-    try std.testing.expectEqual(block_env.coinbase, bits.B160{.bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }});
+    try std.testing.expectEqual(block_env.coinbase, bits.B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } });
 }
 
-test "Block env: set_blob_excess_gas_and_price and get_blob_excess_gas"{
+test "Block env: set_blob_excess_gas_and_price and get_blob_excess_gas" {
     var block_env = try env.BlockEnv.init();
 
     var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
@@ -31,6 +31,12 @@ test "Block env: set_blob_excess_gas_and_price and get_blob_excess_gas"{
     try std.testing.expectEqual(block_env.get_blob_gasprice(), 0);
 }
 
+test "Block env: new" {
+    try std.testing.expect(env.BlobExcessGasAndPrice.new(0).eql(env.BlobExcessGasAndPrice{ .excess_blob_gas = 0, .excess_blob_gasprice = 1 }));
+    try std.testing.expect(env.BlobExcessGasAndPrice.new(2314057).eql(env.BlobExcessGasAndPrice{ .excess_blob_gas = 2314057, .excess_blob_gasprice = 1 }));
+    try std.testing.expect(env.BlobExcessGasAndPrice.new(2314058).eql(env.BlobExcessGasAndPrice{ .excess_blob_gas = 2314058, .excess_blob_gasprice = 2 }));
+    try std.testing.expect(env.BlobExcessGasAndPrice.new(10 * 1024 * 1024).eql(env.BlobExcessGasAndPrice{ .excess_blob_gas = 10 * 1024 * 1024, .excess_blob_gasprice = 23 }));
+}
 
 test "TxEnv: get_total_blob_gas function" {
     var default_tx_env = try env.TxEnv.default(std.testing.allocator);
