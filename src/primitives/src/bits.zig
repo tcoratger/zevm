@@ -7,10 +7,12 @@ pub const B256 = struct {
 
     bytes: [32]u8,
 
+    /// Returns a new zero-initialized fixed hash.
     pub fn zero() Self {
         return .{ .bytes = [_]u8{0} ** 32 };
     }
 
+    /// Returns true if no bits are set.
     pub fn is_zero(self: Self) bool {
         return self.eql(Self.zero());
     }
@@ -24,6 +26,7 @@ pub const B256 = struct {
         return std.mem.eql(u8, &self.bytes, &other.bytes);
     }
 
+    /// Create a new fixed-hash from big number.
     pub fn from(fr: std.math.big.int.Managed, allocator: std.mem.Allocator) !Self {
         var fr_bytes = std.ArrayList(u8).init(allocator);
         defer fr_bytes.deinit();
@@ -41,6 +44,23 @@ pub const B256 = struct {
 
         return .{ .bytes = fr_bytes.items[0..32].* };
     }
+
+    /// Extracts a byte slice containing the entire fixed hash.
+    pub fn as_bytes(self: *Self) *[32]u8 {
+        return &self.bytes;
+    }
+
+    /// Create a new fixed-hash from the given slice src.
+    ///
+    /// ## Note
+    /// The given bytes are interpreted in big endian order.
+    ///
+    /// ## Panic
+    /// If the length of src and the number of bytes in Self do not match.
+    pub fn from_slice(src: *[]u8) Self {
+        std.debug.assert(src.len == 32);
+        return .{ .bytes = src.*[0..32].* };
+    }
 };
 
 /// zevm 256 bits type.
@@ -50,14 +70,17 @@ pub const B160 = struct {
 
     bytes: [bytes_len]u8,
 
+    /// Returns a new zero-initialized fixed hash.
     pub fn zero() Self {
         return .{ .bytes = [_]u8{0} ** 20 };
     }
 
+    /// Returns true if no bits are set.
     pub fn is_zero(self: Self) bool {
         return self.eql(Self.zero());
     }
 
+    /// Create a new fixed-hash from u64.
     pub fn from(fr: u64) Self {
         // Big endian byte order
         return .{ .bytes = [bytes_len]u8{
@@ -68,6 +91,23 @@ pub const B160 = struct {
 
     pub fn eql(self: Self, other: Self) bool {
         return std.mem.eql(u8, &self.bytes, &other.bytes);
+    }
+
+    /// Extracts a byte slice containing the entire fixed hash.
+    pub fn as_bytes(self: *Self) *[20]u8 {
+        return &self.bytes;
+    }
+
+    /// Create a new fixed-hash from the given slice src.
+    ///
+    /// ## Note
+    /// The given bytes are interpreted in big endian order.
+    ///
+    /// ## Panic
+    /// If the length of src and the number of bytes in Self do not match.
+    pub fn from_slice(src: *[]u8) Self {
+        std.debug.assert(src.len == 20);
+        return .{ .bytes = src.*[0..20].* };
     }
 };
 

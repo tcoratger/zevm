@@ -7,6 +7,17 @@ test "B256: zero function" {
     try std.testing.expect(bits.B256.zero().is_zero());
 }
 
+test "B256: from_slice function" {
+    var src = [_]u8{0} ** (32);
+    var slice: []u8 = src[0..src.len];
+    try std.testing.expect(bits.B256.from_slice(&slice).is_zero());
+}
+
+test "B256: as_bytes function" {
+    var b = bits.B256.zero();
+    try std.testing.expect(std.mem.eql(u8, b.as_bytes(), &[_]u8{0} ** 32));
+}
+
 test "B256: from function" {
     var bigint_mock = try std.math.big.int.Managed.initSet(std.testing.allocator, 1000000000);
     defer bigint_mock.deinit();
@@ -17,6 +28,17 @@ test "B256: from function" {
     defer bigint_mock1.deinit();
 
     try std.testing.expect((try bits.B256.from(bigint_mock1, std.testing.allocator)).eql(bits.B256{ .bytes = [32]u8{ 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 } }));
+}
+
+test "B160: as_bytes function" {
+    var b = bits.B160.zero();
+    try std.testing.expect(std.mem.eql(u8, b.as_bytes(), &[_]u8{0} ** 20));
+}
+
+test "B160: from_slice function" {
+    var src = [_]u8{0} ** (20);
+    var slice: []u8 = src[0..src.len];
+    try std.testing.expect(bits.B160.from_slice(&slice).is_zero());
 }
 
 test "B160: zero function" {
