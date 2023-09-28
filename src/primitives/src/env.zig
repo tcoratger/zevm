@@ -5,6 +5,57 @@ const constants = @import("./constants.zig");
 const specifications = @import("./specifications.zig");
 const kzg_env = @import("./kzg/env_settings.zig");
 
+/// Ethereum Environment.
+pub const Env = struct {
+    const Self = @This();
+
+    /// Configuration Environment Structure
+    cfg: CfgEnv,
+    /// Ethereum Block Environment.
+    block: BlockEnv,
+    /// Ethereum Transaction Environment.
+    tx: TxEnv,
+
+    pub fn default(allocator: std.mem.Allocator) !Self {
+        return .{
+            .cfg = CfgEnv.default(),
+            .block = try BlockEnv.default(allocator),
+            .tx = try TxEnv.default(allocator),
+        };
+    }
+
+    /// Calculates the effective gas price of the transaction.
+    pub fn effective_gas_price(self: Self, allocator: std.mem.Allocator) !std.math.big.int.Managed {
+        if (self.tx.gas_priority_fee == null) {
+            return self.tx.gas_price;
+        } else {
+            var basefee_plus_gas_priority_fee = try std.math.big.int.Managed.init(allocator);
+            defer basefee_plus_gas_priority_fee.deinit();
+            try basefee_plus_gas_priority_fee.add(&self.block.base_fee, &self.tx.gas_priority_fee.?);
+
+            return if (std.math.big.int.Managed.order(self.tx.gas_price, basefee_plus_gas_priority_fee).compare(std.math.CompareOperator.lt)) self.tx.gas_price else basefee_plus_gas_priority_fee;
+        }
+    }
+
+    /// Calculates the [EIP-4844] `data_fee` of the transaction.
+    ///
+    /// Returns `None` if `Cancun` is not enabled. This is enforced in [`Env::validate_block_env`].
+    ///
+    /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
+    pub fn calc_data_fee(self: Self) ?u64 {
+        // const blob_gas_price = self.block.get_blob_gasprice();
+        // return if (blob_gas_price == null) null else blob_gas_price * self.tx.get_total_blob_gas();
+
+        return self.block.get_blob_gasprice().? * self.tx.get_total_blob_gas();
+    }
+
+    /// Frees all associated memory.
+    pub fn deinit(self: *Self) void {
+        self.block.deinit();
+        self.tx.deinit();
+    }
+};
+
 pub const BlobExcessGasAndPrice = struct {
     const Self = @This();
 
@@ -21,6 +72,7 @@ pub const BlobExcessGasAndPrice = struct {
     }
 };
 
+/// Ethereum Block Environment.
 pub const BlockEnv = struct {
     const Self = @This();
 
@@ -60,14 +112,14 @@ pub const BlockEnv = struct {
     blob_excess_gas_and_price: ?BlobExcessGasAndPrice,
 
     /// Returns the "default value" for each type.
-    pub fn default() !Self {
+    pub fn default(allocator: std.mem.Allocator) !Self {
         return .{
-            .number = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
+            .number = try std.math.big.int.Managed.initSet(allocator, 0),
             .coinbase = bits.B160.from(0),
-            .timestamp = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
-            .gas_limit = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
-            .base_fee = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
-            .difficulty = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0),
+            .timestamp = try std.math.big.int.Managed.initSet(allocator, 0),
+            .gas_limit = try std.math.big.int.Managed.initSet(allocator, 0),
+            .base_fee = try std.math.big.int.Managed.initSet(allocator, 0),
+            .difficulty = try std.math.big.int.Managed.initSet(allocator, 0),
             .prev_randao = bits.B256.zero(),
             .blob_excess_gas_and_price = BlobExcessGasAndPrice.new(0),
         };
@@ -95,6 +147,15 @@ pub const BlockEnv = struct {
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
     pub fn get_blob_excess_gas(self: Self) ?u64 {
         return self.blob_excess_gas_and_price.?.excess_blob_gas;
+    }
+
+    /// Frees all associated memory.
+    pub fn deinit(self: *Self) void {
+        self.number.deinit();
+        self.timestamp.deinit();
+        self.gas_limit.deinit();
+        self.base_fee.deinit();
+        self.difficulty.deinit();
     }
 };
 
@@ -150,6 +211,7 @@ pub const TransactTo = union(enum) {
     }
 };
 
+/// Ethereum Transaction Environment.
 pub const TxEnv = struct {
     const Self = @This();
 
@@ -166,13 +228,13 @@ pub const TxEnv = struct {
     /// The data of the transaction.
     data: []u8,
     /// The nonce of the transaction. If set to `None`, no checks are performed.
-    nonce: utils.Option(u64),
+    nonce: ?u64,
     /// The chain ID of the transaction. If set to `None`, no checks are performed.
     ///
     /// Incorporated as part of the Spurious Dragon upgrade via [EIP-155].
     ///
     /// [EIP-155]: https://eips.ethereum.org/EIPS/eip-155
-    chain_id: utils.Option(u64),
+    chain_id: ?u64,
     /// A list of addresses and storage keys that the transaction plans to access.
     ///
     /// Added in [EIP-2930].
@@ -184,7 +246,7 @@ pub const TxEnv = struct {
     /// Incorporated as part of the London upgrade via [EIP-1559].
     ///
     /// [EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
-    gas_priority_fee: utils.Option(std.math.big.int.Managed),
+    gas_priority_fee: ?std.math.big.int.Managed,
     /// The list of blob versioned hashes. Per EIP there should be at least
     /// one blob present if [`Self::max_fee_per_blob_gas`] is `Some`.
     ///
@@ -197,30 +259,22 @@ pub const TxEnv = struct {
     /// Incorporated as part of the Cancun upgrade via [EIP-4844].
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
-    max_fee_per_blob_gas: utils.Option(std.math.big.int.Managed),
+    max_fee_per_blob_gas: ?std.math.big.int.Managed,
 
     pub fn default(allocator: std.mem.Allocator) !Self {
-        var gas_price_default = try std.math.big.int.Managed.initSet(allocator, 0);
-        var value_default = try std.math.big.int.Managed.initSet(allocator, 0);
-        var access_list_default = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(std.math.big.int.Managed) })).init(allocator);
-        var blob_hashes_default = std.ArrayList(bits.B256).init(allocator);
-        defer gas_price_default.deinit();
-        defer value_default.deinit();
-        defer access_list_default.deinit();
-        defer blob_hashes_default.deinit();
         return .{
             .caller = bits.B160.from(0),
             .gas_limit = constants.Constants.UINT_64_MAX,
-            .gas_price = gas_price_default,
-            .gas_priority_fee = utils.Option(std.math.big.int.Managed){ .None = true },
+            .gas_price = try std.math.big.int.Managed.initSet(allocator, 0),
+            .gas_priority_fee = null,
             .transact_to = TransactTo{ .Call = .{ .to = bits.B160.from(0) } },
-            .value = value_default,
+            .value = try std.math.big.int.Managed.initSet(allocator, 0),
             .data = undefined,
-            .chain_id = utils.Option(u64){ .None = true },
-            .nonce = utils.Option(u64){ .None = true },
-            .access_list = access_list_default,
-            .blob_hashes = blob_hashes_default,
-            .max_fee_per_blob_gas = utils.Option(std.math.big.int.Managed){ .None = true },
+            .chain_id = null,
+            .nonce = null,
+            .access_list = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(std.math.big.int.Managed) })).init(allocator),
+            .blob_hashes = std.ArrayList(bits.B256).init(allocator),
+            .max_fee_per_blob_gas = null,
         };
     }
 
@@ -230,16 +284,30 @@ pub const TxEnv = struct {
     pub fn get_total_blob_gas(self: *Self) u64 {
         return constants.Constants.GAS_PER_BLOB * @as(u64, self.blob_hashes.items.len);
     }
+
+    /// Frees all associated memory.
+    pub fn deinit(self: *Self) void {
+        self.gas_price.deinit();
+        self.value.deinit();
+        self.access_list.deinit();
+        self.blob_hashes.deinit();
+    }
 };
 
 /// Enumeration representing analysis options for bytecode.
 pub const AnalysisKind = enum {
+    const Self = @This();
+
     /// Do not perform bytecode analysis.
     Raw,
     /// Check the bytecode for validity.
     Check,
     /// Perform bytecode analysis.
     Analyze,
+
+    pub fn default() Self {
+        return Self.Analyze;
+    }
 };
 
 /// Configuration Environment Structure
@@ -287,6 +355,23 @@ pub const CfgEnv = struct {
     /// Disables base fee checks for EIP-1559 transactions.
     /// This is useful for testing method calls with zero gas price.
     disable_base_fee: bool,
+
+    pub fn default() Self {
+        return .{
+            .chain_id = 1,
+            .spec_id = specifications.SpecId.LATEST,
+            .perf_analyze_created_bytecodes = AnalysisKind.default(),
+            .limit_contract_code_size = null,
+            .disable_coinbase_tip = false,
+            .kzg_settings = kzg_env.EnvKzgSettings.Default,
+            .memory_limit = (1 << 32) - 1,
+            .disable_balance_check = false,
+            .disable_block_gas_limit = false,
+            .disable_eip3607 = false,
+            .disable_gas_refund = false,
+            .disable_base_fee = false,
+        };
+    }
 
     /// Returns `true` if EIP-3607 check is disabled.
     pub fn is_eip3607_disabled(self: Self) bool {
