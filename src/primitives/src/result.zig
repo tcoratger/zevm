@@ -61,7 +61,27 @@ pub const Output = union(OutputEnum) {
     }
 };
 
-pub const Halt = error{ OutOfGasError, OpcodeNotFound, InvalidFEOpcode, InvalidJump, NotActivated, StackUnderflow, StackOverflow, OutOfOffset, CreateCollision, PrecompileError, NonceOverflow, CreateContractSizeLimit, CreateContractStartingWithEF, CreateInitcodeSizeLimit, OverflowPayment, StateChangeDuringStaticCall, CallNotAllowedInsideStatic, OutOfFund, CallTooDeep };
+pub const Halt = error{
+    OutOfGasError,
+    OpcodeNotFound,
+    InvalidFEOpcode,
+    InvalidJump,
+    NotActivated,
+    StackUnderflow,
+    StackOverflow,
+    OutOfOffset,
+    CreateCollision,
+    PrecompileError,
+    NonceOverflow,
+    CreateContractSizeLimit,
+    CreateContractStartingWithEF,
+    CreateInitcodeSizeLimit,
+    OverflowPayment,
+    StateChangeDuringStaticCall,
+    CallNotAllowedInsideStatic,
+    OutOfFund,
+    CallTooDeep,
+};
 
 /// InvalidTransaction enumeration represents various reasons for invalid Ethereum transactions.
 pub const InvalidTransaction = union(enum) {
@@ -100,6 +120,24 @@ pub const InvalidTransaction = union(enum) {
     InvalidChainId,
     /// Access list is not supported for blocks before Berlin hardfork.
     AccessListNotSupported,
+    /// `max_fee_per_blob_gas` is not supported for blocks before the Cancun hardfork.
+    MaxFeePerBlobGasNotSupported,
+    /// `blob_hashes`/`blob_versioned_hashes` is not supported for blocks before the Cancun hardfork.
+    BlobVersionedHashesNotSupported,
+    /// Block `blob_gas_price` is greater than tx-specified `max_fee_per_blob_gas` after Cancun.
+    BlobGasPriceGreaterThanMax,
+    /// There should be at least one blob in Blob transaction.
+    EmptyBlobs,
+    /// Blob transaction can't be a create transaction.
+    /// `to` must be present
+    BlobCreateTransaction,
+    /// Transaction has more then [`crate::MAX_BLOB_NUMBER_PER_BLOCK`] blobs
+    TooManyBlobs,
+    /// Blob transaction contains a versioned hash with an incorrect version
+    BlobVersionNotSupported,
+    /// System transactions are not supported
+    /// post-regolith hardfork.
+    DepositSystemTxPostRegolith,
 };
 
 pub const OutOfGasError = error{
