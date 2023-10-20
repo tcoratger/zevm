@@ -27,13 +27,13 @@ pub const Env = struct {
     /// Calculates the effective gas price of the transaction.
     pub fn effective_gas_price(self: Self, allocator: std.mem.Allocator) !std.math.big.int.Managed {
         if (self.tx.gas_priority_fee == null) {
-            return self.tx.gas_price;
+            return self.tx.gas_price.clone();
         } else {
-            var basefee_plus_gas_priority_fee = try std.math.big.int.Managed.init(allocator);
+            var basefee_plus_gas_priority_fee = try std.math.big.int.Managed.initSet(allocator, 0);
             defer basefee_plus_gas_priority_fee.deinit();
             try basefee_plus_gas_priority_fee.add(&self.block.base_fee, &self.tx.gas_priority_fee.?);
 
-            return if (std.math.big.int.Managed.order(self.tx.gas_price, basefee_plus_gas_priority_fee).compare(std.math.CompareOperator.lt)) self.tx.gas_price else basefee_plus_gas_priority_fee;
+            return if (std.math.big.int.Managed.order(self.tx.gas_price, basefee_plus_gas_priority_fee).compare(std.math.CompareOperator.lt)) self.tx.gas_price.clone() else basefee_plus_gas_priority_fee.clone();
         }
     }
 
@@ -291,6 +291,9 @@ pub const TxEnv = struct {
         self.value.deinit();
         self.access_list.deinit();
         self.blob_hashes.deinit();
+        if (self.gas_priority_fee != null) {
+            self.gas_priority_fee.?.deinit();
+        }
     }
 };
 

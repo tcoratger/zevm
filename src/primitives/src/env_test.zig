@@ -89,7 +89,7 @@ test "Env: effective_gas_price without gas_priority_fee" {
     var env_default = try env.Env.default(std.testing.allocator);
     defer env_default.deinit();
     var effective_gas_price = try env.Env.effective_gas_price(env_default, std.testing.allocator);
-    // defer effective_gas_price.deinit();
+    defer effective_gas_price.deinit();
     var expected = try std.math.big.int.Managed.initSet(std.testing.allocator, 0);
     defer expected.deinit();
     try std.testing.expect(effective_gas_price.eql(expected));
@@ -110,11 +110,7 @@ test "Env: effective_gas_price with gas_priority_fee returning gas_price" {
         .blob_hashes = std.ArrayList(bits.B256).init(std.testing.allocator),
         .max_fee_per_blob_gas = null,
     };
-    defer tx_env.gas_price.deinit();
-    defer tx_env.gas_priority_fee.?.deinit();
-    defer tx_env.value.deinit();
-    defer tx_env.access_list.deinit();
-    defer tx_env.blob_hashes.deinit();
+    defer tx_env.deinit();
 
     var env_env = env.Env{
         .block = try env.BlockEnv.default(std.testing.allocator),
@@ -127,6 +123,7 @@ test "Env: effective_gas_price with gas_priority_fee returning gas_price" {
     defer expected.deinit();
 
     var effective_gas_price = try env.Env.effective_gas_price(env_env, std.testing.allocator);
+    defer effective_gas_price.deinit();
 
     try std.testing.expect(effective_gas_price.eql(expected));
 }
@@ -146,11 +143,7 @@ test "Env: effective_gas_price with gas_priority_fee returning gas_priority_fee 
         .blob_hashes = std.ArrayList(bits.B256).init(std.testing.allocator),
         .max_fee_per_blob_gas = null,
     };
-    defer tx_env.gas_price.deinit();
-    defer tx_env.gas_priority_fee.?.deinit();
-    defer tx_env.value.deinit();
-    defer tx_env.access_list.deinit();
-    defer tx_env.blob_hashes.deinit();
+    defer tx_env.deinit();
 
     var env_env = env.Env{
         .block = try env.BlockEnv.default(std.testing.allocator),
@@ -159,11 +152,11 @@ test "Env: effective_gas_price with gas_priority_fee returning gas_priority_fee 
     };
     defer env_env.block.deinit();
 
-    var expected = try std.math.big.int.Managed.initSet(std.testing.allocator, 1);
+    var expected = try std.math.big.int.Managed.initSet(std.testing.allocator, 10);
     defer expected.deinit();
 
     var effective_gas_price = try env.Env.effective_gas_price(env_env, std.testing.allocator);
-    _ = effective_gas_price;
+    defer effective_gas_price.deinit();
 
-    // try std.testing.expect(effective_gas_price.eql(expected));
+    try std.testing.expect(effective_gas_price.eql(expected));
 }
