@@ -67,4 +67,10 @@ pub fn build(b: *std.Build) void {
     // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_unit_tests.step);
+
+    const primitives_module = b.createModule(.{
+        .source_file = .{ .path = "src/primitives/primitives.zig" },
+        .dependencies = &.{},
+    });
+    _ = primitives_module;
 }
