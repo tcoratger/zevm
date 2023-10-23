@@ -31,39 +31,185 @@ test "Utils: create2_address function" {
 
 test "Utils: fake_exponential function" {
     // https://github.com/ethereum/go-ethereum/blob/28857080d732857030eda80c69b9ba2c8926f221/consensus/misc/eip4844/eip4844_test.go#L78
-    try std.testing.expect(utils.fake_exponential(1, 0, 1) == 1);
-    try std.testing.expect(utils.fake_exponential(38493, 0, 1000) == 38493);
-    try std.testing.expect(utils.fake_exponential(0, 1234, 2345) == 0);
-    try std.testing.expect(utils.fake_exponential(1, 2, 1) == 6); // approximate 7.389
-    try std.testing.expect(utils.fake_exponential(1, 4, 2) == 6);
-    try std.testing.expect(utils.fake_exponential(1, 3, 1) == 16); // approximate 20.09
-    try std.testing.expect(utils.fake_exponential(1, 6, 2) == 18);
-    try std.testing.expect(utils.fake_exponential(1, 4, 1) == 49); // approximate 54.60
-    try std.testing.expect(utils.fake_exponential(1, 8, 2) == 50);
-    try std.testing.expect(utils.fake_exponential(10, 8, 2) == 542); // approximate 540.598
-    try std.testing.expect(utils.fake_exponential(11, 8, 2) == 596); // approximate 600.58
-    try std.testing.expect(utils.fake_exponential(1, 5, 1) == 136); // approximate 148.4
-    try std.testing.expect(utils.fake_exponential(1, 5, 2) == 11); // approximate 12.18
-    try std.testing.expect(utils.fake_exponential(2, 5, 2) == 23); // approximate 24.36
-    try std.testing.expect(utils.fake_exponential(1, 50000000, 2225652) == 5709098764);
-    try std.testing.expect(utils.fake_exponential(1, 380928, constants.Constants.BLOB_GASPRICE_UPDATE_FRACTION) == 1);
+    try std.testing.expect(
+        utils.fake_exponential(
+            1,
+            0,
+            1,
+        ) == 1,
+    );
+    try std.testing.expect(
+        utils.fake_exponential(
+            38493,
+            0,
+            1000,
+        ) == 38493,
+    );
+    try std.testing.expect(
+        utils.fake_exponential(
+            0,
+            1234,
+            2345,
+        ) == 0,
+    );
+    try std.testing.expect(
+        utils.fake_exponential(
+            1,
+            2,
+            1,
+        ) == 6,
+    ); // approximate 7.389
+    try std.testing.expect(
+        utils.fake_exponential(
+            1,
+            4,
+            2,
+        ) == 6,
+    );
+    try std.testing.expect(
+        utils.fake_exponential(
+            1,
+            3,
+            1,
+        ) == 16,
+    ); // approximate 20.09
+    try std.testing.expect(
+        utils.fake_exponential(
+            1,
+            6,
+            2,
+        ) == 18,
+    );
+    try std.testing.expect(
+        utils.fake_exponential(
+            1,
+            4,
+            1,
+        ) == 49,
+    ); // approximate 54.60
+    try std.testing.expect(
+        utils.fake_exponential(
+            1,
+            8,
+            2,
+        ) == 50,
+    );
+    try std.testing.expect(
+        utils.fake_exponential(
+            10,
+            8,
+            2,
+        ) == 542,
+    ); // approximate 540.598
+    try std.testing.expect(
+        utils.fake_exponential(
+            11,
+            8,
+            2,
+        ) == 596,
+    ); // approximate 600.58
+    try std.testing.expect(
+        utils.fake_exponential(
+            1,
+            5,
+            1,
+        ) == 136,
+    ); // approximate 148.4
+    try std.testing.expect(
+        utils.fake_exponential(
+            1,
+            5,
+            2,
+        ) == 11,
+    ); // approximate 12.18
+    try std.testing.expect(
+        utils.fake_exponential(
+            2,
+            5,
+            2,
+        ) == 23,
+    ); // approximate 24.36
+    try std.testing.expect(
+        utils.fake_exponential(
+            1,
+            50000000,
+            2225652,
+        ) == 5709098764,
+    );
+    try std.testing.expect(
+        utils.fake_exponential(
+            1,
+            380928,
+            constants.Constants.BLOB_GASPRICE_UPDATE_FRACTION,
+        ) == 1,
+    );
 }
 
 test "Utils: calc_excess_blob_gas function" {
     // https://github.com/ethereum/go-ethereum/blob/28857080d732857030eda80c69b9ba2c8926f221/consensus/misc/eip4844/eip4844_test.go#L27
     // The excess blob gas should not increase from zero if the used blob slots are below - or equal - to the target.
-    try std.testing.expect(utils.calc_excess_blob_gas(0, 0 * constants.Constants.GAS_PER_BLOB) == 0);
-    try std.testing.expect(utils.calc_excess_blob_gas(0, 1 * constants.Constants.GAS_PER_BLOB) == 0);
-    try std.testing.expect(utils.calc_excess_blob_gas(0, (constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) * constants.Constants.GAS_PER_BLOB) == 0);
+    try std.testing.expect(
+        utils.calc_excess_blob_gas(
+            0,
+            0 * constants.Constants.GAS_PER_BLOB,
+        ) == 0,
+    );
+    try std.testing.expect(
+        utils.calc_excess_blob_gas(
+            0,
+            1 * constants.Constants.GAS_PER_BLOB,
+        ) == 0,
+    );
+    try std.testing.expect(
+        utils.calc_excess_blob_gas(
+            0,
+            (constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) * constants.Constants.GAS_PER_BLOB,
+        ) == 0,
+    );
     // If the target blob gas is exceeded, the excessBlobGas should increase by however much it was overshot
-    try std.testing.expect(utils.calc_excess_blob_gas(0, ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) + 1) * constants.Constants.GAS_PER_BLOB) == constants.Constants.GAS_PER_BLOB);
-    try std.testing.expect(utils.calc_excess_blob_gas(1, ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) + 1) * constants.Constants.GAS_PER_BLOB) == constants.Constants.GAS_PER_BLOB + 1);
-    try std.testing.expect(utils.calc_excess_blob_gas(1, ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) + 2) * constants.Constants.GAS_PER_BLOB) == 2 * constants.Constants.GAS_PER_BLOB + 1);
+    try std.testing.expect(
+        utils.calc_excess_blob_gas(
+            0,
+            ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) + 1) * constants.Constants.GAS_PER_BLOB,
+        ) == constants.Constants.GAS_PER_BLOB,
+    );
+    try std.testing.expect(
+        utils.calc_excess_blob_gas(
+            1,
+            ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) + 1) * constants.Constants.GAS_PER_BLOB,
+        ) == constants.Constants.GAS_PER_BLOB + 1,
+    );
+    try std.testing.expect(
+        utils.calc_excess_blob_gas(
+            1,
+            ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) + 2) * constants.Constants.GAS_PER_BLOB,
+        ) == 2 * constants.Constants.GAS_PER_BLOB + 1,
+    );
     // The excess blob gas should decrease by however much the target was under-shot, capped at zero.
-    try std.testing.expect(utils.calc_excess_blob_gas(constants.Constants.TARGET_BLOB_GAS_PER_BLOCK, (constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) * constants.Constants.GAS_PER_BLOB) == constants.Constants.TARGET_BLOB_GAS_PER_BLOCK);
-    try std.testing.expect(utils.calc_excess_blob_gas(constants.Constants.TARGET_BLOB_GAS_PER_BLOCK, ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) - 1) * constants.Constants.GAS_PER_BLOB) == constants.Constants.TARGET_BLOB_GAS_PER_BLOCK - constants.Constants.GAS_PER_BLOB);
-    try std.testing.expect(utils.calc_excess_blob_gas(constants.Constants.TARGET_BLOB_GAS_PER_BLOCK, ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) - 2) * constants.Constants.GAS_PER_BLOB) == constants.Constants.TARGET_BLOB_GAS_PER_BLOCK - (2 * constants.Constants.GAS_PER_BLOB));
-    try std.testing.expect(utils.calc_excess_blob_gas(constants.Constants.GAS_PER_BLOB - 1, ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) - 1) * constants.Constants.GAS_PER_BLOB) == 0);
+    try std.testing.expect(
+        utils.calc_excess_blob_gas(
+            constants.Constants.TARGET_BLOB_GAS_PER_BLOCK,
+            (constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) * constants.Constants.GAS_PER_BLOB,
+        ) == constants.Constants.TARGET_BLOB_GAS_PER_BLOCK,
+    );
+    try std.testing.expect(
+        utils.calc_excess_blob_gas(
+            constants.Constants.TARGET_BLOB_GAS_PER_BLOCK,
+            ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) - 1) * constants.Constants.GAS_PER_BLOB,
+        ) == constants.Constants.TARGET_BLOB_GAS_PER_BLOCK - constants.Constants.GAS_PER_BLOB,
+    );
+    try std.testing.expect(
+        utils.calc_excess_blob_gas(
+            constants.Constants.TARGET_BLOB_GAS_PER_BLOCK,
+            ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) - 2) * constants.Constants.GAS_PER_BLOB,
+        ) == constants.Constants.TARGET_BLOB_GAS_PER_BLOCK - (2 * constants.Constants.GAS_PER_BLOB),
+    );
+    try std.testing.expect(
+        utils.calc_excess_blob_gas(
+            constants.Constants.GAS_PER_BLOB - 1,
+            ((constants.Constants.TARGET_BLOB_GAS_PER_BLOCK / constants.Constants.GAS_PER_BLOB) - 1) * constants.Constants.GAS_PER_BLOB,
+        ) == 0,
+    );
 }
 
 test "Utils: calc_blob_gasprice function" {

@@ -254,11 +254,33 @@ pub fn sload_cost(comptime spec: specifications, is_cold: bool) u64 {
         50;
 }
 
-pub fn sstore_cost(comptime spec: specifications, original: std.math.big.int.Managed, current: std.math.big.int.Managed, new: std.math.big.int.Managed, gas: u64, is_cold: bool) ?u64 {
-    _ = is_cold;
-    _ = gas;
-    _ = new;
-    _ = current;
-    _ = original;
-    _ = spec;
+pub fn sstore_cost(
+    comptime spec: specifications,
+    original: std.math.big.int.Managed,
+    current: std.math.big.int.Managed,
+    new: std.math.big.int.Managed,
+    gas: u64,
+    is_cold: bool,
+) ?u64 {
+    if (gas < constants.Constants.CALL_STIPEND) {
+        return null;
+    }
+
+    const gas_sload_sstore_reset = if (specifications.enabled(spec, specifications.BERLIN)) .{
+        constants.Constants.WARM_STORAGE_READ_COST,
+        constants.Constants.SSTORE_RESET - constants.Constants.COLD_SLOAD_COST,
+    } else .{
+        sload_cost(spec, is_cold),
+        constants.Constants.SSTORE_RESET,
+    };
+
+    const gas_cost = if (specifications.enabled(
+        spec,
+        specifications.ISTANBUL,
+    )) (if (!new.eql(current) and original.eql(current)) (if (original.eqlZero()) constants.Constants.SSTORE_SET else gas_sload_sstore_reset[1]) else gas_sload_sstore_reset[0]) else if (current.eqlZero() and !new.eqlZero()) constants.Constants.SSTORE_SET else gas_sload_sstore_reset[1];
+
+    return if (specifications.enabled(
+        spec,
+        specifications.BERLIN,
+    ) and is_cold) gas_cost + constants.Constants.COLD_SLOAD_COST else gas_cost;
 }
