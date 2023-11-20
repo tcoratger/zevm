@@ -42,7 +42,7 @@ pub const OutputEnum = enum { Call, Create };
 
 pub const Output = union(OutputEnum) {
     Call: struct { bytes: []u8 },
-    Create: struct { bytes: []u8, option: utils.Option(u64) },
+    Create: struct { bytes: []u8, option: ?u64 },
 
     /// Returns the output data of the execution output.
     pub fn into_data(output: Output) []u8 {

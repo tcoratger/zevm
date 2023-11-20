@@ -5,10 +5,6 @@ const constants = @import("./constants.zig");
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 
-pub fn Option(comptime T: type) type {
-    return union(enum) { None: bool, Some: T };
-}
-
 pub fn BigIntContext(comptime K: type) type {
     return struct {
         pub fn hash(self: @This(), b: std.math.big.int.Managed) u64 {
