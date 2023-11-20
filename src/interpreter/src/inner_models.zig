@@ -119,13 +119,8 @@ pub const CallContext = struct {
             .caller = [20]u8{0},
             .code_address = [20]u8{0},
             .apparent_value = 0,
-            .scheme = CallScheme.Call,
+            .scheme = .Call,
         };
-    }
-
-    /// Frees all associated memory.
-    pub fn deinit(self: *Self) void {
-        self.apparent_value.deinit();
     }
 };
 
