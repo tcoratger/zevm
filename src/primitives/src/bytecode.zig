@@ -225,9 +225,9 @@ test "Bytecode: hash_slow function" {
         constants.Constants.KECCAK_EMPTY,
         Bytecode.new_raw(buf[0..0]).hash_slow(),
     );
-    const expected_hash = bits.B256{ .bytes = [32]u8{ 125, 135, 197, 234, 117, 247, 55, 139, 183, 1, 228, 4, 197, 6, 57, 22, 26, 243, 239, 246, 98, 147, 233, 243, 117, 181, 241, 126, 181, 4, 118, 244 } };
+
     try expectEqual(
-        expected_hash,
+        bits.B256{ .bytes = [32]u8{ 125, 135, 197, 234, 117, 247, 55, 139, 183, 1, 228, 4, 197, 6, 57, 22, 26, 243, 239, 246, 98, 147, 233, 243, 117, 181, 241, 126, 181, 4, 118, 244 } },
         Bytecode.new_raw(buf[0..]).hash_slow(),
     );
 }
