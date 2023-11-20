@@ -8,7 +8,13 @@ pub const ExecutionResult = union(ExecutionResultEnum) {
     const Self = @This();
 
     /// Returned successfully
-    Success: struct { reason: Eval, gas_used: u64, gas_refunded: u64, logs: log.Log, output: Output },
+    Success: struct {
+        reason: Eval,
+        gas_used: u64,
+        gas_refunded: u64,
+        logs: log.Log,
+        output: Output,
+    },
     /// Reverted by `REVERT` opcode that doesn't spend all gas.
     Revert: struct { gas_used: u64, output: u64 },
     /// Reverted for various reasons and spend all gas.

@@ -67,7 +67,10 @@ pub const BlobExcessGasAndPrice = struct {
 
     /// Takes excess blob gas and calculated blob fee with [`calc_blob_fee`]
     pub fn new(excess_blob_gas: u64) Self {
-        return .{ .excess_blob_gas = excess_blob_gas, .excess_blob_gasprice = utils.calc_blob_gasprice(excess_blob_gas) };
+        return .{
+            .excess_blob_gas = excess_blob_gas,
+            .excess_blob_gasprice = utils.calc_blob_gasprice(excess_blob_gas),
+        };
     }
 
     pub fn eql(self: Self, other: Self) bool {
