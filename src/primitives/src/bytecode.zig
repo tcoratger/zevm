@@ -29,17 +29,24 @@ pub const Bytecode = struct {
     /// Creates a new `Bytecode` with exactly one STOP opcode.
     pub fn new() Self {
         var buf: [1]u8 = .{0};
-        return .{ .bytecode = buf[0..], .state = BytecodeState{ .Analysed = .{ .len = 0, .jump_map = JumpMap{} } } };
+        return .{
+            .bytecode = &buf,
+            .state = .{ .Analysed = .{ .len = 0, .jump_map = .{} } },
+        };
     }
 
     /// Calculate hash of the bytecode.
     pub fn hash_slow(self: Self) bits.B256 {
-        return if (self.is_empty()) constants.Constants.KECCAK_EMPTY else utils.keccak256(self.original_bytes());
+        if (self.is_empty()) {
+            return constants.Constants.KECCAK_EMPTY;
+        } else {
+            return utils.keccak256(self.original_bytes());
+        }
     }
 
     /// Creates a new raw `Bytecode`.
     pub fn new_raw(bytecode: []u8) Self {
-        return .{ .bytecode = bytecode, .state = BytecodeState.Raw };
+        return .{ .bytecode = bytecode, .state = .Raw };
     }
 
     /// Create new checked bytecode
@@ -50,7 +57,7 @@ pub const Bytecode = struct {
     pub fn new_checked(bytecode: []u8, len: usize) Self {
         return .{
             .bytecode = bytecode,
-            .state = BytecodeState{ .Checked = .{ .len = len } },
+            .state = .{ .Checked = .{ .len = len } },
         };
     }
 
@@ -98,7 +105,10 @@ pub const Bytecode = struct {
                 defer padded_bytecode.deinit();
                 try padded_bytecode.appendSlice(self.bytecode);
                 try padded_bytecode.appendNTimes(0, 33);
-                return .{ .bytecode = try padded_bytecode.toOwnedSlice(), .state = BytecodeState{ .Checked = .{ .len = self.bytecode.len } } };
+                return .{
+                    .bytecode = try padded_bytecode.toOwnedSlice(),
+                    .state = .{ .Checked = .{ .len = self.bytecode.len } },
+                };
             },
             else => self,
         };
@@ -106,12 +116,20 @@ pub const Bytecode = struct {
 
     pub fn eql(self: Self, other: Self) bool {
         return std.mem.eql(u8, self.bytecode, other.bytecode) and switch (self.state) {
-            .Raw => other.state == BytecodeState.Raw,
+            .Raw => other.state == .Raw,
             .Checked => {
-                return if (other.state == BytecodeState.Checked) self.state.Checked.len == other.state.Checked.len else false;
+                if (other.state == .Checked) {
+                    return self.state.Checked.len == other.state.Checked.len;
+                } else {
+                    return false;
+                }
             },
             .Analysed => {
-                return if (other.state == BytecodeState.Analysed) self.state.Analysed.len == other.state.Analysed.len else false;
+                if (other.state == .Analysed) {
+                    return self.state.Analysed.len == other.state.Analysed.len;
+                } else {
+                    return false;
+                }
             },
         };
     }
@@ -119,13 +137,19 @@ pub const Bytecode = struct {
 
 test "Bytecode: new_raw function" {
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
-    try expect(Bytecode.eql(Bytecode.new_raw(buf[0..]), Bytecode{ .bytecode = buf[0..], .state = BytecodeState.Raw }));
+    try expect(Bytecode.eql(Bytecode.new_raw(buf[0..]), .{ .bytecode = buf[0..], .state = .Raw }));
 }
 
 test "Bytecode: new_checked function" {
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
-    try expectEqual(Bytecode.new_checked(buf[0..], 10).bytecode, buf[0..]);
-    try expectEqual(Bytecode.new_checked(buf[0..], 10).state, BytecodeState{ .Checked = .{ .len = 10 } });
+    try expectEqual(
+        @as([]u8, buf[0..]),
+        Bytecode.new_checked(buf[0..], 10).bytecode,
+    );
+    try expectEqual(
+        BytecodeState{ .Checked = .{ .len = 10 } },
+        Bytecode.new_checked(buf[0..], 10).state,
+    );
 
     try expect(Bytecode.eql(Bytecode.new_checked(buf[0..], 10), Bytecode{
         .bytecode = buf[0..],
@@ -136,30 +160,30 @@ test "Bytecode: new_checked function" {
 test "Bytecode: bytes function" {
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
     var x = Bytecode.new_checked(buf[0..], 10);
-    try expectEqual(x.bytes(), buf[0..]);
+    try expectEqual(@as([]u8, buf[0..]), x.bytes());
 }
 
 test "Bytecode: original_bytes function" {
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
     try expectEqual(
+        @as([]u8, buf[0..3]),
         Bytecode.new_checked(buf[0..], 3).original_bytes(),
-        buf[0..3],
     );
     try expectEqual(
+        @as([]u8, buf[0..]),
         Bytecode.new_raw(buf[0..]).original_bytes(),
-        buf[0..],
     );
 }
 
 test "Bytecode: state function" {
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
     try expectEqual(
-        Bytecode.state(Bytecode.new_checked(buf[0..], 3)),
         BytecodeState{ .Checked = .{ .len = 3 } },
+        Bytecode.state(Bytecode.new_checked(buf[0..], 3)),
     );
     try expectEqual(
-        Bytecode.state(Bytecode.new_raw(buf[0..])),
         BytecodeState.Raw,
+        Bytecode.state(Bytecode.new_raw(buf[0..])),
     );
 }
 
@@ -172,9 +196,18 @@ test "Bytecode: is_empty function" {
 
 test "Bytecode: len function" {
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
-    try expectEqual(Bytecode.get_len(Bytecode.new_checked(buf[0..], 3)), 3);
-    try expectEqual(Bytecode.get_len(Bytecode.new_raw(buf[0..0])), 0);
-    try expectEqual(Bytecode.get_len(Bytecode.new_raw(buf[0..])), 5);
+    try expectEqual(
+        @as(usize, 3),
+        Bytecode.get_len(Bytecode.new_checked(buf[0..], 3)),
+    );
+    try expectEqual(
+        @as(usize, 0),
+        Bytecode.get_len(Bytecode.new_raw(buf[0..0])),
+    );
+    try expectEqual(
+        @as(usize, 5),
+        Bytecode.get_len(Bytecode.new_raw(buf[0..])),
+    );
 }
 
 test "Bytecode: to_check function" {
@@ -189,42 +222,12 @@ test "Bytecode: to_check function" {
 test "Bytecode: hash_slow function" {
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
     try expectEqual(
-        Bytecode.new_raw(buf[0..0]).hash_slow(),
         constants.Constants.KECCAK_EMPTY,
+        Bytecode.new_raw(buf[0..0]).hash_slow(),
     );
-    const expected_hash = bits.B256{ .bytes = [32]u8{
-        125,
-        135,
-        197,
-        234,
-        117,
-        247,
-        55,
-        139,
-        183,
-        1,
-        228,
-        4,
-        197,
-        6,
-        57,
-        22,
-        26,
-        243,
-        239,
-        246,
-        98,
-        147,
-        233,
-        243,
-        117,
-        181,
-        241,
-        126,
-        181,
-        4,
-        118,
-        244,
-    } };
-    try expectEqual(Bytecode.new_raw(buf[0..]).hash_slow(), expected_hash);
+    const expected_hash = bits.B256{ .bytes = [32]u8{ 125, 135, 197, 234, 117, 247, 55, 139, 183, 1, 228, 4, 197, 6, 57, 22, 26, 243, 239, 246, 98, 147, 233, 243, 117, 181, 241, 126, 181, 4, 118, 244 } };
+    try expectEqual(
+        expected_hash,
+        Bytecode.new_raw(buf[0..]).hash_slow(),
+    );
 }
