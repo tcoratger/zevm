@@ -409,7 +409,7 @@ test "Block env: Init" {
     var block_env = try BlockEnv.default(std.testing.allocator);
     defer block_env.deinit();
 
-    var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
+    var managed_int = try std.math.big.int.Managed.initSet(std.testing.allocator, 0);
     defer managed_int.deinit();
 
     try expect(block_env.base_fee.eql(managed_int));
@@ -429,7 +429,7 @@ test "Block env: set_blob_excess_gas_and_price and get_blob_excess_gas" {
     var block_env = try BlockEnv.default(std.testing.allocator);
     defer block_env.deinit();
 
-    var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
+    var managed_int = try std.math.big.int.Managed.initSet(std.testing.allocator, 0);
     defer managed_int.deinit();
 
     block_env.set_blob_excess_gas_and_price(10);
