@@ -56,7 +56,7 @@ pub fn build(b: *std.Build) void {
     // but does not run it.
     const unit_tests = b.addTest(.{
         // .root_source_file = .{ .path = "src/main.zig" },
-        .root_source_file = .{ .path = "src/interpreter/src/gas_test.zig" },
+        .root_source_file = .{ .path = "src/interpreter/src/inner_models.zig" },
         .target = target,
         .optimize = optimize,
     });

@@ -1,6 +1,11 @@
 const std = @import("std");
 const primitives = @import("primitives");
 
+const B160 = primitives.B160;
+
+const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
+
 /// Inputs for a call.
 pub const CallInputs = struct {
     /// The target of the call.
@@ -34,22 +39,24 @@ pub const CreateInputs = struct {
 
     /// Returns the address that this create call will create.
     pub fn create_address(
-        self: *Self,
+        self: *const Self,
         nonce: u64,
         allocator: std.mem.Allocator,
-    ) [20]u8 {
+    ) ![20]u8 {
+        var end: usize = 20;
+
         return switch (self.scheme) {
-            .Create => primitives.Utils.create_address(
-                primitives.B160.from_slice(self.caller[0..]),
+            .Create => (try primitives.Utils.create_address(
+                primitives.B160.from_slice(self.caller[0..end]),
                 nonce,
                 allocator,
-            ),
-            .Create2 => |*scheme| primitives.Utils.create2_address(
+            )).bytes,
+            .Create2 => |*scheme| (try primitives.Utils.create2_address(
                 primitives.B160.from_slice(self.caller[0..]),
-                primitives.B256.from_slice(&self.init_code),
+                primitives.B256.from_slice(self.init_code),
                 scheme.*.salt,
                 allocator,
-            ),
+            )).bytes,
         };
     }
 
@@ -138,3 +145,19 @@ pub const SelfDestructResult = struct {
     is_cold: bool,
     previously_destroyed: bool,
 };
+
+test "CreateInputs: create_address function with Create scheme" {
+    var tmp = [3]u8{ 1, 2, 3 };
+    const create_inputs: CreateInputs = .{
+        .caller = B160.from(1000).bytes,
+        .scheme = .Create,
+        .value = 10,
+        .init_code = &tmp,
+        .gas_limit = 4,
+    };
+
+    try expectEqual(
+        [20]u8{ 4, 1, 133, 88, 123, 80, 98, 157, 3, 48, 181, 126, 60, 186, 109, 109, 136, 77, 127, 229 },
+        try create_inputs.create_address(2, std.testing.allocator),
+    );
+}

@@ -60,9 +60,9 @@ pub const B256 = struct {
     ///
     /// ## Panic
     /// If the length of src and the number of bytes in Self do not match.
-    pub fn from_slice(src: *[]u8) Self {
+    pub fn from_slice(src: []const u8) Self {
         std.debug.assert(src.len == 32);
-        return .{ .bytes = src.*[0..32].* };
+        return .{ .bytes = src.ptr[0..32].* };
     }
 };
 
@@ -108,9 +108,9 @@ pub const B160 = struct {
     ///
     /// ## Panic
     /// If the length of src and the number of bytes in Self do not match.
-    pub fn from_slice(src: *[]u8) Self {
+    pub fn from_slice(src: []const u8) Self {
         std.debug.assert(src.len == 20);
-        return .{ .bytes = src.*[0..20].* };
+        return .{ .bytes = src.ptr[0..20].* };
     }
 };
 
@@ -159,9 +159,8 @@ test "B256: zero function" {
 }
 
 test "B256: from_slice function" {
-    var src = [_]u8{0} ** (32);
-    var slice: []u8 = src[0..src.len];
-    try expect(B256.from_slice(&slice).is_zero());
+    const src = [_]u8{0} ** (32);
+    try expect(B256.from_slice(&src).is_zero());
 }
 
 test "B256: as_bytes function" {
@@ -185,9 +184,8 @@ test "B160: as_bytes function" {
 }
 
 test "B160: from_slice function" {
-    var src = [_]u8{0} ** (20);
-    var slice: []u8 = src[0..src.len];
-    try expect(B160.from_slice(&slice).is_zero());
+    const src = [_]u8{0} ** (20);
+    try expect(B160.from_slice(&src).is_zero());
 }
 
 test "B160: zero function" {
