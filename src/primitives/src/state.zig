@@ -10,28 +10,31 @@ const expectEqual = std.testing.expectEqual;
 pub const StorageSlot = struct {
     const Self = @This();
 
-    original_value: std.math.big.int.Managed,
+    original_value: u256,
     /// When loaded with sload present value is set to original value
-    present_value: std.math.big.int.Managed,
+    present_value: u256,
 
-    pub fn init(new_original_value: std.math.big.int.Managed) Self {
-        return .{ .original_value = new_original_value, .present_value = new_original_value };
+    pub fn init(new_original_value: u256) Self {
+        return .{
+            .original_value = new_original_value,
+            .present_value = new_original_value,
+        };
     }
 
-    pub fn set(self: *Self, new_original_value: std.math.big.int.Managed) void {
+    pub fn set(self: *Self, new_original_value: u256) void {
         self.original_value = new_original_value;
         self.present_value = new_original_value;
     }
 
     pub fn is_changed(self: *Self) bool {
-        return self.original_value.eql(self.present_value);
+        return self.original_value == self.present_value;
     }
 
-    pub fn get_original_value(self: Self) std.math.big.int.Managed {
+    pub fn get_original_value(self: Self) u256 {
         return self.original_value;
     }
 
-    pub fn get_present_value(self: Self) std.math.big.int.Managed {
+    pub fn get_present_value(self: Self) u256 {
         return self.present_value;
     }
 };
@@ -43,7 +46,7 @@ pub const Account = struct {
     info: AccountInfo,
     /// storage cache
     // Account status flags.
-    storage: std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage),
+    storage: std.HashMap(u256, StorageSlot, utils.BigIntContext(u256), std.hash_map.default_max_load_percentage),
     status: AccountStatus,
 
     /// Mark account as self destructed.
@@ -72,7 +75,7 @@ pub const Account = struct {
     }
 
     /// If account status is marked as touched.
-    pub fn is_touched(self: Self) bool {
+    pub fn is_touched(self: *Self) bool {
         return self.status.Touched;
     }
 
@@ -87,30 +90,32 @@ pub const Account = struct {
     }
 
     /// If account status is marked as created.
-    pub fn is_created(self: Self) bool {
+    pub fn is_created(self: *Self) bool {
         return self.status.Created;
     }
 
     /// Is account loaded as not existing from database
     /// This is needed for pre spurious dragon hardforks where
     /// existing and empty were two separate states.
-    pub fn is_loaded_as_not_existing(self: Self) bool {
+    pub fn is_loaded_as_not_existing(self: *Self) bool {
         return self.status.LoadedAsNotExisting;
     }
 
     /// Is account empty, check if nonce and balance are zero and code is empty.
-    pub fn is_empty(self: Self) bool {
+    pub fn is_empty(self: *Self) bool {
         return self.info.is_empty();
     }
 
     /// Create new account and mark it as non existing.
     pub fn new_not_existing(allocator: std.mem.Allocator) !Self {
-        var map = std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(allocator);
-        defer map.deinit();
-
         return .{
             .info = try AccountInfo.init(),
-            .storage = map,
+            .storage = std.HashMap(
+                u256,
+                StorageSlot,
+                utils.BigIntContext(u256),
+                std.hash_map.default_max_load_percentage,
+            ).init(allocator),
             .status = .{
                 .Loaded = false,
                 .Created = false,
@@ -119,6 +124,11 @@ pub const Account = struct {
                 .LoadedAsNotExisting = true,
             },
         };
+    }
+
+    /// Frees all associated memory.
+    pub fn deinit(self: *Self) void {
+        self.storage.deinit();
     }
 };
 
@@ -155,7 +165,7 @@ pub const AccountInfo = struct {
     const Self = @This();
 
     /// Account balance.
-    balance: std.math.big.int.Managed,
+    balance: u256,
     /// Account nonce.
     nonce: u64,
     /// code hash,
@@ -165,11 +175,8 @@ pub const AccountInfo = struct {
     code: ?bytecode.Bytecode,
 
     pub fn init() !Self {
-        var managed = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-        defer managed.deinit();
-
         return .{
-            .balance = managed,
+            .balance = 0,
             .nonce = 0,
             .code_hash = constants.Constants.KECCAK_EMPTY,
             .code = bytecode.Bytecode.new(),
@@ -177,11 +184,11 @@ pub const AccountInfo = struct {
     }
 
     pub fn eq(self: Self, other: Self) bool {
-        return self.balance.toConst().eql(other.balance.toConst()) and self.nonce == other.nonce and self.code_hash.eql(other.code_hash);
+        return self.balance == other.balance and self.nonce == other.nonce and self.code_hash.eql(other.code_hash);
     }
 
     pub fn new(
-        balance: std.math.big.int.Managed,
+        balance: u256,
         nonce: u64,
         code_hash: bits.B256,
         code: bytecode.Bytecode,
@@ -195,7 +202,7 @@ pub const AccountInfo = struct {
     }
 
     pub fn is_empty(self: Self) bool {
-        return self.balance.eqlZero() and self.nonce == 0 and (self.code_hash.eql(constants.Constants.KECCAK_EMPTY) or self.code_hash.eql(bits.B256.zero()));
+        return self.balance == 0 and self.nonce == 0 and (self.code_hash.eql(constants.Constants.KECCAK_EMPTY) or self.code_hash.eql(bits.B256.zero()));
     }
 
     pub fn exists(self: Self) bool {
@@ -215,7 +222,7 @@ pub const AccountInfo = struct {
         return y;
     }
 
-    pub fn from_balance(balance: std.math.big.int.Managed) Self {
+    pub fn from_balance(balance: u256) Self {
         return .{
             .balance = balance,
             .nonce = 0,
@@ -226,76 +233,54 @@ pub const AccountInfo = struct {
 };
 
 test "State - StorageSlot : init" {
-    var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer managed_int.deinit();
+    const storage_slot = StorageSlot.init(0);
 
-    const storage_slot = StorageSlot.init(managed_int);
-
-    try expect(storage_slot.original_value.limbs[0] == 0);
-    try expect(storage_slot.present_value.limbs[0] == 0);
+    try expectEqual(@as(u256, 0), storage_slot.original_value);
+    try expectEqual(@as(u256, 0), storage_slot.present_value);
 }
 
 test "State - StorageSlot : set" {
-    var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer managed_int.deinit();
+    var storage_slot = StorageSlot.init(0);
+    storage_slot.set(2);
 
-    var managed_int_2 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 2);
-    defer managed_int_2.deinit();
-
-    var storage_slot = StorageSlot.init(managed_int);
-
-    storage_slot.set(managed_int_2);
-
-    try expect(storage_slot.original_value.limbs[0] == 2);
+    try expectEqual(@as(u256, 2), storage_slot.original_value);
+    try expectEqual(@as(u256, 2), storage_slot.present_value);
 }
 
 test "State - StorageSlot : is_changed" {
-    var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer managed_int.deinit();
-
-    var managed_int_2 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 2);
-    defer managed_int_2.deinit();
-
-    var storage_slot = StorageSlot.init(managed_int);
-
-    storage_slot.set(managed_int_2);
+    var storage_slot = StorageSlot.init(0);
+    storage_slot.set(2);
 
     try expect(storage_slot.is_changed());
 }
 
 test "State - StorageSlot : get_original_value" {
-    var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer managed_int.deinit();
-    var storage_slot = StorageSlot.init(managed_int);
-    try expect(storage_slot.get_original_value().eql(managed_int));
+    var storage_slot = StorageSlot.init(0);
+    try expectEqual(@as(u256, 0), storage_slot.get_original_value());
 
-    var managed_int_2 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 2);
-    defer managed_int_2.deinit();
-    storage_slot.set(managed_int_2);
-    try expect(storage_slot.get_original_value().eql(managed_int_2));
+    storage_slot.set(2);
+    try expectEqual(@as(u256, 2), storage_slot.get_original_value());
 }
 
 test "State - StorageSlot : get_present_value" {
-    var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer managed_int.deinit();
-    var storage_slot = StorageSlot.init(managed_int);
-    try expect(storage_slot.get_present_value().eql(managed_int));
+    var storage_slot = StorageSlot.init(0);
+    try expectEqual(@as(u256, 0), storage_slot.get_present_value());
 
-    var managed_int_2 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 2);
-    defer managed_int_2.deinit();
-    storage_slot.set(managed_int_2);
-    try expect(storage_slot.get_present_value().eql(managed_int_2));
+    storage_slot.set(2);
+    try expectEqual(@as(u256, 2), storage_slot.get_present_value());
 }
 
 test "Account: self destruct functions" {
-    var map = std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
+    var map = std.HashMap(
+        u256,
+        StorageSlot,
+        utils.BigIntContext(u256),
+        std.hash_map.default_max_load_percentage,
+    ).init(std.testing.allocator);
 
     defer map.deinit();
 
-    var big_int_0 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer big_int_0.deinit();
-
-    try map.put(big_int_0, StorageSlot{ .original_value = big_int_0, .present_value = big_int_0 });
+    try map.put(0, .{ .original_value = 0, .present_value = 0 });
 
     var default_account = try AccountInfo.init();
 
@@ -313,13 +298,15 @@ test "Account: self destruct functions" {
 }
 
 test "Account: touched functions" {
-    var map = std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
+    var map = std.HashMap(
+        u256,
+        StorageSlot,
+        utils.BigIntContext(u256),
+        std.hash_map.default_max_load_percentage,
+    ).init(std.testing.allocator);
     defer map.deinit();
 
-    var big_int_0 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer big_int_0.deinit();
-
-    try map.put(big_int_0, StorageSlot{ .original_value = big_int_0, .present_value = big_int_0 });
+    try map.put(0, .{ .original_value = 0, .present_value = 0 });
 
     var default_account = try AccountInfo.init();
 
@@ -337,13 +324,10 @@ test "Account: touched functions" {
 }
 
 test "Account: created functions" {
-    var map = std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
+    var map = std.HashMap(u256, StorageSlot, utils.BigIntContext(u256), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
     defer map.deinit();
 
-    var big_int_0 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer big_int_0.deinit();
-
-    try map.put(big_int_0, StorageSlot{ .original_value = big_int_0, .present_value = big_int_0 });
+    try map.put(0, .{ .original_value = 0, .present_value = 0 });
 
     var default_account = try AccountInfo.init();
 
@@ -361,13 +345,15 @@ test "Account: created functions" {
 }
 
 test "Account: is_empty function" {
-    var map = std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
+    var map = std.HashMap(
+        u256,
+        StorageSlot,
+        utils.BigIntContext(u256),
+        std.hash_map.default_max_load_percentage,
+    ).init(std.testing.allocator);
     defer map.deinit();
 
-    var big_int_0 = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer big_int_0.deinit();
-
-    try map.put(big_int_0, StorageSlot{ .original_value = big_int_0, .present_value = big_int_0 });
+    try map.put(0, StorageSlot{ .original_value = 0, .present_value = 0 });
 
     var default_account = try AccountInfo.init();
 
@@ -381,6 +367,7 @@ test "Account: is_empty function" {
 
 test "Account: new_not_existing function" {
     var not_existing = try Account.new_not_existing(std.testing.allocator);
+    defer not_existing.deinit();
 
     try expect(not_existing.status.LoadedAsNotExisting);
 }
@@ -390,17 +377,14 @@ test "AccountStatus: default function" {
 }
 
 test "AccountInfo: default function" {
-    var lb = [_]usize{ 0, 0, 0, 0 };
     var buf: [1]u8 = .{0};
 
     var default_account = try AccountInfo.init();
 
-    try std.testing.expectEqualSlices(usize, default_account.balance.limbs, lb[0..]);
-    try expectEqual(default_account.balance.len(), 1);
-    try expect(default_account.balance.isPositive());
+    try expectEqual(@as(u256, 0), default_account.balance);
     try expectEqual(default_account.nonce, 0);
     try expectEqual(default_account.code_hash, bits.B256{ .bytes = [32]u8{ 197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0, 182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112 } });
-    try std.testing.expectEqualSlices(u8, default_account.code.?.bytecode, buf[0..]);
+    try std.testing.expectEqualSlices(u8, default_account.code.?.bytecode, &buf);
     try expectEqual(default_account.code.?.state.Analysed.len, 0);
 }
 
@@ -413,20 +397,24 @@ test "AccountInfo: eq function" {
 test "AccountInfo: new function" {
     var buf: [1]u8 = .{0};
 
-    var managed = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer managed.deinit();
-
-    var managed_to_compare = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
-    defer managed_to_compare.deinit();
-
-    var accountInfo = AccountInfo.new(managed, 0, constants.Constants.KECCAK_EMPTY, bytecode.Bytecode.new());
-    try expect(accountInfo.balance.limbs[0] == 0);
-    try expectEqual(accountInfo.balance.len(), 1);
-    try expect(accountInfo.balance.isPositive());
-    try expectEqual(accountInfo.nonce, 0);
-    try expectEqual(accountInfo.code_hash, constants.Constants.KECCAK_EMPTY);
-    try std.testing.expectEqualSlices(u8, accountInfo.code.?.bytecode, buf[0..]);
-    try expectEqual(accountInfo.code.?.state.Analysed.len, 0);
+    var accountInfo = AccountInfo.new(
+        0,
+        0,
+        constants.Constants.KECCAK_EMPTY,
+        bytecode.Bytecode.new(),
+    );
+    try expectEqual(@as(u256, 0), accountInfo.balance);
+    try expectEqual(@as(u64, 0), accountInfo.nonce);
+    try expectEqual(constants.Constants.KECCAK_EMPTY, accountInfo.code_hash);
+    try std.testing.expectEqualSlices(
+        u8,
+        &buf,
+        accountInfo.code.?.bytecode,
+    );
+    try expectEqual(
+        @as(usize, 0),
+        accountInfo.code.?.state.Analysed.len,
+    );
 }
 
 test "AccountInfo: is_empty function" {
@@ -438,13 +426,19 @@ test "AccountInfo: is_empty function" {
 test "AccountInfo: exists function" {
     var default_account = try AccountInfo.init();
 
-    try expectEqual(AccountInfo.exists(default_account), false);
+    try expectEqual(
+        false,
+        AccountInfo.exists(default_account),
+    );
 }
 
 test "AccountInfo: code_hash function" {
     var default_account = try AccountInfo.init();
 
-    try expectEqual(default_account.get_code_hash(), constants.Constants.KECCAK_EMPTY);
+    try expectEqual(
+        constants.Constants.KECCAK_EMPTY,
+        default_account.get_code_hash(),
+    );
 }
 
 test "AccountInfo: take_bytecode function" {
@@ -454,20 +448,26 @@ test "AccountInfo: take_bytecode function" {
     var accountInfo = default_account;
     var result_take_bytecode = accountInfo.take_bytecode();
     try std.testing.expectEqualSlices(u8, result_take_bytecode.?.bytecode, buf[0..]);
-    try expectEqual(result_take_bytecode.?.state.Analysed.len, 0);
+    try expectEqual(@as(usize, 0), result_take_bytecode.?.state.Analysed.len);
     try expectEqual(@as(?bytecode.Bytecode, null), accountInfo.take_bytecode());
 }
 
 test "AccountInfo: from_balance function" {
     var buf: [1]u8 = .{0};
-    var balance = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 100);
-    defer balance.deinit();
 
-    try expect(AccountInfo.from_balance(balance).balance.limbs[0] == 100);
-    try expectEqual(AccountInfo.from_balance(balance).balance.len(), 1);
-    try expect(AccountInfo.from_balance(balance).balance.isPositive());
-    try expectEqual(AccountInfo.from_balance(balance).nonce, 0);
-    try expectEqual(AccountInfo.from_balance(balance).code_hash, constants.Constants.KECCAK_EMPTY);
-    try std.testing.expectEqualSlices(u8, AccountInfo.from_balance(balance).code.?.bytecode, buf[0..]);
-    try expectEqual(AccountInfo.from_balance(balance).code.?.state.Analysed.len, 0);
+    try expectEqual(@as(u256, 100), AccountInfo.from_balance(100).balance);
+    try expectEqual(@as(u256, 0), AccountInfo.from_balance(100).nonce);
+    try expectEqual(
+        constants.Constants.KECCAK_EMPTY,
+        AccountInfo.from_balance(100).code_hash,
+    );
+    try std.testing.expectEqualSlices(
+        u8,
+        &buf,
+        AccountInfo.from_balance(100).code.?.bytecode,
+    );
+    try expectEqual(
+        @as(usize, 0),
+        AccountInfo.from_balance(100).code.?.state.Analysed.len,
+    );
 }

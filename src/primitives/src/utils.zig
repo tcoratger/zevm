@@ -7,7 +7,7 @@ const expectEqual = std.testing.expectEqual;
 
 pub fn BigIntContext(comptime K: type) type {
     return struct {
-        pub fn hash(self: @This(), b: std.math.big.int.Managed) u64 {
+        pub fn hash(self: @This(), b: u256) u64 {
             _ = b;
             _ = self;
             var hasher = std.hash.Wyhash.init(0);
