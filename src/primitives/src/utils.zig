@@ -44,20 +44,43 @@ pub fn create_address(caller: bits.B160, nonce: u64, allocator: std.mem.Allocato
     }
 
     if (nonce >= 0x80) {
-        try stream.insert(bits.B160.bytes_len, @as(u8, 0x80 + @as(u8, @intCast(stream.items.len - bits.B160.bytes_len))));
+        try stream.insert(
+            bits.B160.bytes_len,
+            @as(
+                u8,
+                0x80 + @as(
+                    u8,
+                    @intCast(stream.items.len - bits.B160.bytes_len),
+                ),
+            ),
+        );
     }
 
-    try stream.insert(0, 0x80 + @as(u8, @intCast(bits.B160.bytes_len)));
-    try stream.insert(0, 0xc0 + @as(u8, @intCast(stream.items.len)));
+    try stream.insert(
+        0,
+        0x80 + @as(
+            u8,
+            @intCast(bits.B160.bytes_len),
+        ),
+    );
+    try stream.insert(
+        0,
+        0xc0 + @as(
+            u8,
+            @intCast(stream.items.len),
+        ),
+    );
 
-    const slice = try stream.toOwnedSlice();
-    defer std.mem.Allocator.free(allocator, slice);
-
-    return bits.B160{ .bytes = keccak256(slice).bytes[12..].* };
+    return .{ .bytes = keccak256(stream.items).bytes[12..].* };
 }
 
 /// Returns the address for the `CREATE2` scheme
-pub fn create2_address(caller: bits.B160, code_hash: bits.B256, salt: std.math.big.int.Managed, allocator: std.mem.Allocator) !bits.B160 {
+pub fn create2_address(
+    caller: bits.B160,
+    code_hash: bits.B256,
+    salt: std.math.big.int.Managed,
+    allocator: std.mem.Allocator,
+) !bits.B160 {
     var out: [32]u8 = undefined;
     var h = std.crypto.hash.sha3.Keccak256.init(.{});
     h.update(&[1]u8{0xff});
@@ -74,7 +97,7 @@ pub fn create2_address(caller: bits.B160, code_hash: bits.B256, salt: std.math.b
     h.update(salt_bytes.items);
     h.update(&code_hash.bytes);
     h.final(&out);
-    return bits.B160{ .bytes = out[12..].* };
+    return .{ .bytes = out[12..].* };
 }
 
 /// Calculates the `excess_blob_gas` from the parent header's `blob_gas_used` and `excess_blob_gas`.
@@ -88,7 +111,11 @@ pub fn calc_excess_blob_gas(parent_excess_blob_gas: u64, parent_blob_gas_used: u
 ///
 /// See also [the EIP-4844 helpers](https://eips.ethereum.org/EIPS/eip-4844#helpers).
 pub fn calc_blob_gasprice(excess_blob_gas: u64) u64 {
-    return fake_exponential(constants.Constants.MIN_BLOB_GASPRICE, excess_blob_gas, constants.Constants.BLOB_GASPRICE_UPDATE_FRACTION);
+    return fake_exponential(
+        constants.Constants.MIN_BLOB_GASPRICE,
+        excess_blob_gas,
+        constants.Constants.BLOB_GASPRICE_UPDATE_FRACTION,
+    );
 }
 
 /// Approximates `factor * e ** (numerator / denominator)` using Taylor expansion.
@@ -120,29 +147,60 @@ pub fn fake_exponential(factor: u64, numerator: u64, denominator: u64) u64 {
 }
 
 test "Utils: keccak256 function" {
-    try expectEqual(keccak256("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"), bits.B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } });
+    try expectEqual(
+        bits.B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } },
+        keccak256("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"),
+    );
 }
 
 test "Utils: create_address function" {
-    try expectEqual(try create_address(bits.B160.from(18_446_744_073_709_551_615), 2, std.testing.allocator), bits.B160{ .bytes = [20]u8{ 4, 1, 133, 88, 123, 80, 98, 157, 3, 48, 181, 126, 60, 186, 109, 109, 136, 77, 127, 229 } });
+    try expectEqual(
+        bits.B160{ .bytes = [20]u8{ 4, 1, 133, 88, 123, 80, 98, 157, 3, 48, 181, 126, 60, 186, 109, 109, 136, 77, 127, 229 } },
+        try create_address(bits.B160.from(18_446_744_073_709_551_615), 2, std.testing.allocator),
+    );
 
-    try expectEqual(try create_address(bits.B160.from(1000), 2999999, std.testing.allocator), bits.B160{ .bytes = [20]u8{ 69, 197, 114, 224, 17, 22, 105, 149, 160, 191, 165, 217, 140, 56, 245, 219, 61, 76, 233, 120 } });
+    try expectEqual(
+        bits.B160{ .bytes = [20]u8{ 69, 197, 114, 224, 17, 22, 105, 149, 160, 191, 165, 217, 140, 56, 245, 219, 61, 76, 233, 120 } },
+        try create_address(bits.B160.from(1000), 2999999, std.testing.allocator),
+    );
 
-    try expectEqual(try create_address(bits.B160.from(1), 18_446_744_073_709_551_615, std.testing.allocator), bits.B160{ .bytes = [20]u8{ 0, 21, 103, 35, 151, 52, 174, 173, 234, 33, 2, 60, 42, 124, 13, 155, 185, 174, 74, 249 } });
+    try expectEqual(
+        bits.B160{ .bytes = [20]u8{ 0, 21, 103, 35, 151, 52, 174, 173, 234, 33, 2, 60, 42, 124, 13, 155, 185, 174, 74, 249 } },
+        try create_address(bits.B160.from(1), 18_446_744_073_709_551_615, std.testing.allocator),
+    );
 }
 
 test "Utils: u8_bytes_from_u64 function" {
-    try expectEqual(u8_bytes_from_u64(0), [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 });
-    try expectEqual(u8_bytes_from_u64(10), [8]u8{ 0, 0, 0, 0, 0, 0, 0, 10 });
-    try expectEqual(u8_bytes_from_u64(18_446_744_073_709_551_615), [8]u8{ 255, 255, 255, 255, 255, 255, 255, 255 });
+    try expectEqual([8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 }, u8_bytes_from_u64(0));
+    try expectEqual([8]u8{ 0, 0, 0, 0, 0, 0, 0, 10 }, u8_bytes_from_u64(10));
+    try expectEqual(
+        [8]u8{ 255, 255, 255, 255, 255, 255, 255, 255 },
+        u8_bytes_from_u64(18_446_744_073_709_551_615),
+    );
 }
 
 test "Utils: create2_address function" {
     var salt = try std.math.big.int.Managed.initSet(std.testing.allocator, 10000000000000000000000000000000);
     defer salt.deinit();
-    try expectEqual(try create2_address(bits.B160.from(18_446_744_073_709_551_615), bits.B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } }, salt, std.testing.allocator), bits.B160{ .bytes = [20]u8{ 21, 108, 197, 97, 104, 190, 154, 181, 81, 131, 139, 5, 178, 141, 203, 240, 157, 66, 125, 96 } });
+    try expectEqual(
+        bits.B160{ .bytes = [20]u8{ 21, 108, 197, 97, 104, 190, 154, 181, 81, 131, 139, 5, 178, 141, 203, 240, 157, 66, 125, 96 } },
+        try create2_address(
+            bits.B160.from(18_446_744_073_709_551_615),
+            bits.B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } },
+            salt,
+            std.testing.allocator,
+        ),
+    );
 
-    try expectEqual(try create2_address(bits.B160.from(1000), bits.B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } }, salt, std.testing.allocator), bits.B160{ .bytes = [20]u8{ 142, 250, 209, 93, 4, 51, 82, 199, 205, 81, 218, 25, 155, 148, 82, 184, 92, 44, 84, 254 } });
+    try expectEqual(
+        bits.B160{ .bytes = [20]u8{ 142, 250, 209, 93, 4, 51, 82, 199, 205, 81, 218, 25, 155, 148, 82, 184, 92, 44, 84, 254 } },
+        try create2_address(
+            bits.B160.from(1000),
+            bits.B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } },
+            salt,
+            std.testing.allocator,
+        ),
+    );
 }
 
 test "Utils: fake_exponential function" {
