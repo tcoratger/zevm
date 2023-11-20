@@ -44,7 +44,6 @@ pub const CreateInputs = struct {
         allocator: std.mem.Allocator,
     ) ![20]u8 {
         var end: usize = 20;
-
         return switch (self.scheme) {
             .Create => (try primitives.Utils.create_address(
                 primitives.B160.from_slice(self.caller[0..end]),
@@ -149,7 +148,7 @@ pub const SelfDestructResult = struct {
 test "CreateInputs: create_address function with Create scheme" {
     var tmp = [3]u8{ 1, 2, 3 };
     const create_inputs: CreateInputs = .{
-        .caller = B160.from(1000).bytes,
+        .caller = B160.from(18_446_744_073_709_551_615).bytes,
         .scheme = .Create,
         .value = 10,
         .init_code = &tmp,
@@ -158,6 +157,22 @@ test "CreateInputs: create_address function with Create scheme" {
 
     try expectEqual(
         [20]u8{ 4, 1, 133, 88, 123, 80, 98, 157, 3, 48, 181, 126, 60, 186, 109, 109, 136, 77, 127, 229 },
+        try create_inputs.create_address(2, std.testing.allocator),
+    );
+}
+
+test "CreateInputs: create_address function with Create2 scheme" {
+    var tmp = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 };
+    const create_inputs: CreateInputs = .{
+        .caller = B160.from(18_446_744_073_709_551_615).bytes,
+        .scheme = .{ .Create2 = .{ .salt = 10000000000000000000000000000000 } },
+        .value = 10,
+        .init_code = &tmp,
+        .gas_limit = 4,
+    };
+
+    try expectEqual(
+        [20]u8{ 21, 108, 197, 97, 104, 190, 154, 181, 81, 131, 139, 5, 178, 141, 203, 240, 157, 66, 125, 96 },
         try create_inputs.create_address(2, std.testing.allocator),
     );
 }
