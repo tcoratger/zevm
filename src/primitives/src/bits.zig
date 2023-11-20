@@ -1,5 +1,8 @@
 const std = @import("std");
 const utils = @import("./utils.zig");
+const constants = @import("./constants.zig");
+
+const expect = std.testing.expect;
 
 /// zevm 256 bits type.
 pub const B256 = struct {
@@ -149,3 +152,54 @@ pub const Serialize = struct {
         }
     }
 };
+
+test "B256: zero function" {
+    try expect(B256.zero().eql(B256{ .bytes = [_]u8{0} ** 32 }));
+    try expect(B256.zero().is_zero());
+}
+
+test "B256: from_slice function" {
+    var src = [_]u8{0} ** (32);
+    var slice: []u8 = src[0..src.len];
+    try expect(B256.from_slice(&slice).is_zero());
+}
+
+test "B256: as_bytes function" {
+    var b = B256.zero();
+    try expect(std.mem.eql(u8, b.as_bytes(), &[_]u8{0} ** 32));
+}
+
+test "B256: from function" {
+    var bigint_mock = try std.math.big.int.Managed.initSet(std.testing.allocator, 1000000000);
+    defer bigint_mock.deinit();
+
+    try expect((try B256.from(bigint_mock, std.testing.allocator)).eql(B256{ .bytes = [32]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 59, 154, 202, 0 } }));
+
+    var bigint_mock1 = try std.math.big.int.Managed.initSet(std.testing.allocator, constants.Constants.UINT_256_MAX);
+    defer bigint_mock1.deinit();
+
+    try expect((try B256.from(bigint_mock1, std.testing.allocator)).eql(B256{ .bytes = [32]u8{ 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 } }));
+}
+
+test "B160: as_bytes function" {
+    var b = B160.zero();
+    try expect(std.mem.eql(u8, b.as_bytes(), &[_]u8{0} ** 20));
+}
+
+test "B160: from_slice function" {
+    var src = [_]u8{0} ** (20);
+    var slice: []u8 = src[0..src.len];
+    try expect(B160.from_slice(&slice).is_zero());
+}
+
+test "B160: zero function" {
+    try expect(B160.zero().eql(B160{ .bytes = [_]u8{0} ** 20 }));
+    try expect(B160.zero().is_zero());
+}
+
+test "B160: from u64 function" {
+    try expect(B160.from(34353535).eql(B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 12, 49, 127 } }));
+    try expect(B160.from(11111111).eql(B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 169, 138, 199 } }));
+    try expect(B160.from(0).eql(B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }));
+    try expect(B160.from(std.math.maxInt(u64)).eql(B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255 } }));
+}

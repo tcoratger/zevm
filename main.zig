@@ -1,5 +1,4 @@
 const std = @import("std");
-const toto = @import("./src/constants.zig");
 const titi = @import("./src/primitives/src/specifications.zig");
 const tutu = @import("./src/primitives/src/result.zig");
 const log = @import("./src/primitives/src/log.zig");
@@ -16,8 +15,6 @@ pub fn main() void {
     // std.debug.print("Division operation: {}  (correct)\n", .{original / divisor});
 
     std.debug.print("Hello, {s}!\n", .{"World"});
-
-    std.debug.print("EMPTY_UNCLE_HASH = {any}\n", .{toto.Constants.BLANK_ROOT_HASH});
 
     std.debug.print("EMPTY_UNCLE_HASH = {any}\n", .{titi.SpecId.enabled(titi.SpecId.CONSTANTINOPLE, titi.SpecId.BERLIN)});
 
@@ -38,4 +35,5 @@ pub fn main() void {
 
     // const maybeString: util.Option.T = util.Option.some("Hello, Zig!");
     // _ = maybeString;
+
 }

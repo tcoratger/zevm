@@ -5,6 +5,9 @@ const constants = @import("./constants.zig");
 const specifications = @import("./specifications.zig");
 const kzg_env = @import("./kzg/env_settings.zig");
 
+const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
+
 /// Ethereum Environment.
 pub const Env = struct {
     const Self = @This();
@@ -401,3 +404,177 @@ pub const CfgEnv = struct {
         return self.disable_block_gas_limit;
     }
 };
+
+test "Block env: Init" {
+    var block_env = try BlockEnv.default(std.testing.allocator);
+    defer block_env.deinit();
+
+    var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
+    defer managed_int.deinit();
+
+    try expect(block_env.base_fee.eql(managed_int));
+    try expect(block_env.number.eql(managed_int));
+    try expect(block_env.timestamp.eql(managed_int));
+    try expect(block_env.gas_limit.eql(managed_int));
+    try expect(block_env.difficulty.eql(managed_int));
+    try expect(block_env.blob_excess_gas_and_price.?.eql(BlobExcessGasAndPrice{ .excess_blob_gas = 0, .excess_blob_gasprice = 1 }));
+    try expectEqual(
+        block_env.coinbase,
+        bits.B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } },
+    );
+    try expect(block_env.prev_randao.?.is_zero());
+}
+
+test "Block env: set_blob_excess_gas_and_price and get_blob_excess_gas" {
+    var block_env = try BlockEnv.default(std.testing.allocator);
+    defer block_env.deinit();
+
+    var managed_int = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
+    defer managed_int.deinit();
+
+    block_env.set_blob_excess_gas_and_price(10);
+
+    try expectEqual(block_env.blob_excess_gas_and_price.?.excess_blob_gas, 10);
+    try expectEqual(block_env.get_blob_excess_gas(), 10);
+    try expectEqual(block_env.get_blob_gasprice(), 0);
+}
+
+test "Block env: new" {
+    try expect(
+        BlobExcessGasAndPrice.new(0).eql(BlobExcessGasAndPrice{ .excess_blob_gas = 0, .excess_blob_gasprice = 1 }),
+    );
+    try expect(BlobExcessGasAndPrice.new(2314057).eql(BlobExcessGasAndPrice{
+        .excess_blob_gas = 2314057,
+        .excess_blob_gasprice = 1,
+    }));
+    try expect(BlobExcessGasAndPrice.new(2314058).eql(BlobExcessGasAndPrice{
+        .excess_blob_gas = 2314058,
+        .excess_blob_gasprice = 2,
+    }));
+    try expect(BlobExcessGasAndPrice.new(10 * 1024 * 1024).eql(BlobExcessGasAndPrice{
+        .excess_blob_gas = 10 * 1024 * 1024,
+        .excess_blob_gasprice = 23,
+    }));
+}
+
+test "TxEnv: get_total_blob_gas function" {
+    var default_tx_env = try TxEnv.default(std.testing.allocator);
+    default_tx_env.deinit();
+    try expect(default_tx_env.get_total_blob_gas() == 0);
+}
+
+test "TransactTo: call function" {
+    try expectEqual(
+        TransactTo.call(bits.B160.from(18_446_744_073_709_551_615)),
+        TransactTo{ .Call = .{ .to = bits.B160.from(18_446_744_073_709_551_615) } },
+    );
+}
+
+test "TransactTo: create function" {
+    try expectEqual(TransactTo.create(), TransactTo{ .Create = .{ .scheme = CreateScheme.Create } });
+}
+
+test "TransactTo: create2 function" {
+    var salt_mock = try std.math.big.int.Managed.initSet(std.testing.allocator, 10000000000000000000000000000000);
+    defer salt_mock.deinit();
+    try expectEqual(TransactTo.create2(salt_mock), TransactTo{ .Create = .{ .scheme = CreateScheme{ .Create2 = .{ .salt = salt_mock } } } });
+}
+
+test "TransactTo: is_call function" {
+    var salt_mock = try std.math.big.int.Managed.initSet(std.testing.allocator, 10000000000000000000000000000000);
+    defer salt_mock.deinit();
+    var create2 = TransactTo.create2(salt_mock);
+    try expect(!create2.is_call());
+
+    var call = TransactTo.call(bits.B160.from(18_446_744_073_709_551_615));
+    try expect(call.is_call());
+}
+
+test "TransactTo: is_create function" {
+    var create = TransactTo.create();
+    try expect(create.is_create());
+
+    var call = TransactTo.call(bits.B160.from(18_446_744_073_709_551_615));
+    try expect(!call.is_create());
+
+    var salt_mock = try std.math.big.int.Managed.initSet(std.testing.allocator, 10000000000000000000000000000000);
+    defer salt_mock.deinit();
+    var create2 = TransactTo.create2(salt_mock);
+    try expect(create2.is_create());
+}
+
+test "Env: effective_gas_price without gas_priority_fee" {
+    var env_default = try Env.default(std.testing.allocator);
+    defer env_default.deinit();
+    var effective_gas_price = try Env.effective_gas_price(env_default, std.testing.allocator);
+    defer effective_gas_price.deinit();
+    var expected = try std.math.big.int.Managed.initSet(std.testing.allocator, 0);
+    defer expected.deinit();
+    try expect(effective_gas_price.eql(expected));
+}
+
+test "Env: effective_gas_price with gas_priority_fee returning gas_price" {
+    var tx_env = TxEnv{
+        .caller = bits.B160.from(0),
+        .gas_limit = constants.Constants.UINT_64_MAX,
+        .gas_price = try std.math.big.int.Managed.initSet(std.testing.allocator, 1),
+        .gas_priority_fee = try std.math.big.int.Managed.initSet(std.testing.allocator, 10),
+        .transact_to = TransactTo{ .Call = .{ .to = bits.B160.from(0) } },
+        .value = try std.math.big.int.Managed.initSet(std.testing.allocator, 0),
+        .data = undefined,
+        .chain_id = null,
+        .nonce = null,
+        .access_list = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(std.math.big.int.Managed) })).init(std.testing.allocator),
+        .blob_hashes = std.ArrayList(bits.B256).init(std.testing.allocator),
+        .max_fee_per_blob_gas = null,
+    };
+    defer tx_env.deinit();
+
+    var env_env = Env{
+        .block = try BlockEnv.default(std.testing.allocator),
+        .cfg = CfgEnv.default(),
+        .tx = tx_env,
+    };
+    defer env_env.block.deinit();
+
+    var expected = try std.math.big.int.Managed.initSet(std.testing.allocator, 1);
+    defer expected.deinit();
+
+    var effective_gas_price = try Env.effective_gas_price(env_env, std.testing.allocator);
+    defer effective_gas_price.deinit();
+
+    try expect(effective_gas_price.eql(expected));
+}
+
+test "Env: effective_gas_price with gas_priority_fee returning gas_priority_fee + base_fee" {
+    var tx_env = TxEnv{
+        .caller = bits.B160.from(0),
+        .gas_limit = constants.Constants.UINT_64_MAX,
+        .gas_price = try std.math.big.int.Managed.initSet(std.testing.allocator, 11),
+        .gas_priority_fee = try std.math.big.int.Managed.initSet(std.testing.allocator, 10),
+        .transact_to = TransactTo{ .Call = .{ .to = bits.B160.from(0) } },
+        .value = try std.math.big.int.Managed.initSet(std.testing.allocator, 0),
+        .data = undefined,
+        .chain_id = null,
+        .nonce = null,
+        .access_list = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(std.math.big.int.Managed) })).init(std.testing.allocator),
+        .blob_hashes = std.ArrayList(bits.B256).init(std.testing.allocator),
+        .max_fee_per_blob_gas = null,
+    };
+    defer tx_env.deinit();
+
+    var env_env = Env{
+        .block = try BlockEnv.default(std.testing.allocator),
+        .cfg = CfgEnv.default(),
+        .tx = tx_env,
+    };
+    defer env_env.block.deinit();
+
+    var expected = try std.math.big.int.Managed.initSet(std.testing.allocator, 10);
+    defer expected.deinit();
+
+    var effective_gas_price = try Env.effective_gas_price(env_env, std.testing.allocator);
+    defer effective_gas_price.deinit();
+
+    try expect(effective_gas_price.eql(expected));
+}
