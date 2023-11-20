@@ -2,6 +2,7 @@ const std = @import("std");
 const primitives = @import("primitives");
 
 const B160 = primitives.B160;
+const B256 = primitives.B256;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
@@ -63,23 +64,24 @@ pub const CreateInputs = struct {
     ///
     /// Note: `hash` must be `keccak256(&self.init_code)`.
     pub fn created_address_with_hash(
-        self: *Self,
+        self: *const Self,
         nonce: u64,
-        hash: *primitives.B256,
+        hash: primitives.B256,
         allocator: std.mem.Allocator,
-    ) [20]u8 {
+    ) ![20]u8 {
+        var end: usize = 20;
         return switch (self.scheme) {
-            .Create => primitives.Utils.create_address(
-                primitives.B160.from_slice(self.caller[0..]),
+            .Create => (try primitives.Utils.create_address(
+                primitives.B160.from_slice(self.caller[0..end]),
                 nonce,
                 allocator,
-            ),
-            .Create2 => |*scheme| primitives.Utils.create2_address(
-                primitives.B160.from_slice(self.caller[0..]),
+            )).bytes,
+            .Create2 => |*scheme| (try primitives.Utils.create2_address(
+                primitives.B160.from_slice(self.caller[0..end]),
                 hash,
                 scheme.*.salt,
                 allocator,
-            ),
+            )).bytes,
         };
     }
 };
@@ -174,5 +176,41 @@ test "CreateInputs: create_address function with Create2 scheme" {
     try expectEqual(
         [20]u8{ 21, 108, 197, 97, 104, 190, 154, 181, 81, 131, 139, 5, 178, 141, 203, 240, 157, 66, 125, 96 },
         try create_inputs.create_address(2, std.testing.allocator),
+    );
+}
+
+test "CreateInputs: created_address_with_hash function with Create scheme" {
+    var tmp = [3]u8{ 1, 2, 3 };
+    const create_inputs: CreateInputs = .{
+        .caller = B160.from(18_446_744_073_709_551_615).bytes,
+        .scheme = .Create,
+        .value = 10,
+        .init_code = &tmp,
+        .gas_limit = 4,
+    };
+
+    var hash = B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } };
+
+    try expectEqual(
+        [20]u8{ 4, 1, 133, 88, 123, 80, 98, 157, 3, 48, 181, 126, 60, 186, 109, 109, 136, 77, 127, 229 },
+        try create_inputs.created_address_with_hash(2, hash, std.testing.allocator),
+    );
+}
+
+test "CreateInputs: created_address_with_hash function with Create2 scheme" {
+    var tmp = [3]u8{ 1, 2, 3 };
+    const create_inputs: CreateInputs = .{
+        .caller = B160.from(18_446_744_073_709_551_615).bytes,
+        .scheme = .{ .Create2 = .{ .salt = 10000000000000000000000000000000 } },
+        .value = 10,
+        .init_code = &tmp,
+        .gas_limit = 4,
+    };
+
+    var hash = B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } };
+
+    try expectEqual(
+        [20]u8{ 21, 108, 197, 97, 104, 190, 154, 181, 81, 131, 139, 5, 178, 141, 203, 240, 157, 66, 125, 96 },
+        try create_inputs.created_address_with_hash(2, hash, std.testing.allocator),
     );
 }
