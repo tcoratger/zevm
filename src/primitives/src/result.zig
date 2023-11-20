@@ -2,7 +2,11 @@ const std = @import("std");
 const log = @import("./log.zig");
 const utils = @import("./utils.zig");
 
-pub const ExecutionResultEnum = enum { Success, Revert, Halt };
+pub const ExecutionResultEnum = enum {
+    Success,
+    Revert,
+    Halt,
+};
 
 pub const ExecutionResult = union(ExecutionResultEnum) {
     const Self = @This();
@@ -71,7 +75,7 @@ pub const Output = union(OutputEnum) {
     }
 };
 
-pub const Halt = error{
+pub const Halt = enum {
     OutOfGasError,
     OpcodeNotFound,
     InvalidFEOpcode,

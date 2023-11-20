@@ -1,3 +1,8 @@
+const primitives = @import("../../primitives/primitives.zig");
+
+const Eval = primitives.Eval;
+const Halt = primitives.Halt;
+
 pub const InstructionResult = enum(u8) {
     const Self = @This();
 
@@ -112,6 +117,86 @@ pub const InstructionResult = enum(u8) {
             .FatalExternalError,
             => true,
             else => false,
+        };
+    }
+};
+
+pub const SuccessOrHalt = union(enum) {
+    const Self = @This();
+
+    Success: Eval,
+    Revert,
+    Halt: Halt,
+    FatalExternalError,
+    /// Internal instruction that signals Interpreter should continue running.
+    InternalContinue,
+    /// Internal instruction that signals subcall.
+    InternalCallOrCreate,
+
+    /// Returns true if the transaction returned successfully without halts.
+    pub fn is_success(self: *Self) bool {
+        return switch (self.*) {
+            .Success => true,
+            else => false,
+        };
+    }
+
+    /// Returns the [Eval] value if this a successful result
+    pub fn to_success(self: *Self) ?Eval {
+        return switch (self.*) {
+            .Success => |eval| eval,
+            else => null,
+        };
+    }
+
+    /// Returns true if the EVM has experienced an exceptional halt
+    pub fn is_halt(self: *Self) bool {
+        return switch (self.*) {
+            .Halt => true,
+            else => false,
+        };
+    }
+
+    /// Returns the [Halt] value the EVM has experienced an exceptional halt
+    pub fn to_halt(self: *Self) ?Halt {
+        return switch (self.*) {
+            .Halt => |halt| halt,
+            else => null,
+        };
+    }
+
+    pub fn from(result: InstructionResult) Self {
+        return switch (result) {
+            .Continue => .InternalContinue,
+            .Stop => .{ .Success = .Stop },
+            .Return => .{ .Success = .Return },
+            .SelfDestruct => .{ .Success = .SelfDestruct },
+            .Revert => .Revert,
+            .CallOrCreate => .InternalCallOrCreate,
+            .CallTooDeep => .{ .Halt = .CallTooDeep },
+            .OutOfFund => .{ .Halt = .OutOfFund },
+            .OutOfGas => .{ .Halt = .OutOfGasError },
+            .MemoryLimitOOG => .{ .Halt = .OutOfGasError },
+            .MemoryOOG => .{ .Halt = .OutOfGasError },
+            .PrecompileOOG => .{ .Halt = .OutOfGasError },
+            .InvalidOperandOOG => .{ .Halt = .OutOfGasError },
+            .OpcodeNotFound => .{ .Halt = .OpcodeNotFound },
+            .CallNotAllowedInsideStatic => .{ .Halt = .CallNotAllowedInsideStatic },
+            .StateChangeDuringStaticCall => .{ .Halt = .StateChangeDuringStaticCall },
+            .InvalidFEOpcode => .{ .Halt = .InvalidFEOpcode },
+            .InvalidJump => .{ .Halt = .InvalidJump },
+            .NotActivated => .{ .Halt = .NotActivated },
+            .StackUnderflow => .{ .Halt = .StackUnderflow },
+            .StackOverflow => .{ .Halt = .StackOverflow },
+            .OutOfOffset => .{ .Halt = .OutOfOffset },
+            .CreateCollision => .{ .Halt = .CreateCollision },
+            .OverflowPayment => .{ .Halt = .OverflowPayment },
+            .PrecompileError => .{ .Halt = .PrecompileError },
+            .NonceOverflow => .{ .Halt = .NonceOverflow },
+            .CreateContractSizeLimit => .{ .Halt = .CreateContractSizeLimit },
+            .CreateContractStartingWithEF => .{ .Halt = .CreateContractSizeLimit },
+            .CreateInitcodeSizeLimit => .{ .Halt = .CreateInitcodeSizeLimit },
+            .FatalExternalError => .FatalExternalError,
         };
     }
 };

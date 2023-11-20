@@ -18,3 +18,4 @@ pub const Account = @import("./src/state.zig").Account;
 pub const AccountInfo = @import("./src/state.zig").AccountInfo;
 pub const AccountStatus = @import("./src/state.zig").AccountStatus;
 pub const Utils = @import("./src/utils.zig");
+pub const Eval = @import("./src/result.zig").Eval;
