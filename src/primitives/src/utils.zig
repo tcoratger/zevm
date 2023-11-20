@@ -95,7 +95,7 @@ pub fn create2_address(
         u256,
         &buf,
         salt,
-        .little,
+        .big,
     );
 
     try salt_bytes.appendSlice(&buf);
