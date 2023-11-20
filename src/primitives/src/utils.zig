@@ -78,7 +78,7 @@ pub fn create_address(caller: bits.B160, nonce: u64, allocator: std.mem.Allocato
 pub fn create2_address(
     caller: bits.B160,
     code_hash: bits.B256,
-    salt: std.math.big.int.Managed,
+    salt: u256,
     allocator: std.mem.Allocator,
 ) !bits.B160 {
     var out: [32]u8 = undefined;
@@ -88,12 +88,18 @@ pub fn create2_address(
 
     var salt_bytes = std.ArrayList(u8).init(allocator);
     defer salt_bytes.deinit();
-    const salt_limbs = salt.toConst().limbs;
-    var nbr_limbs = salt_limbs.len;
-    try salt_bytes.appendNTimes(0, 8 * (salt.limbs.len - nbr_limbs));
-    while (nbr_limbs > 0) : (nbr_limbs -= 1) {
-        try salt_bytes.appendSlice(&u8_bytes_from_u64(salt_limbs[nbr_limbs - 1]));
-    }
+
+    var buf: [32]u8 = [_]u8{0} ** 32;
+
+    std.mem.writeInt(
+        u256,
+        &buf,
+        salt,
+        .big,
+    );
+
+    try salt_bytes.appendSlice(&buf);
+
     h.update(salt_bytes.items);
     h.update(&code_hash.bytes);
     h.final(&out);
@@ -180,14 +186,12 @@ test "Utils: u8_bytes_from_u64 function" {
 }
 
 test "Utils: create2_address function" {
-    var salt = try std.math.big.int.Managed.initSet(std.testing.allocator, 10000000000000000000000000000000);
-    defer salt.deinit();
     try expectEqual(
         bits.B160{ .bytes = [20]u8{ 21, 108, 197, 97, 104, 190, 154, 181, 81, 131, 139, 5, 178, 141, 203, 240, 157, 66, 125, 96 } },
         try create2_address(
             bits.B160.from(18_446_744_073_709_551_615),
             bits.B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } },
-            salt,
+            10000000000000000000000000000000,
             std.testing.allocator,
         ),
     );
@@ -197,7 +201,7 @@ test "Utils: create2_address function" {
         try create2_address(
             bits.B160.from(1000),
             bits.B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } },
-            salt,
+            10000000000000000000000000000000,
             std.testing.allocator,
         ),
     );
