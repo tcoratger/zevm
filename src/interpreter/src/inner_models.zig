@@ -1,5 +1,5 @@
 const std = @import("std");
-const primitives = @import("primitives");
+const primitives = @import("../../primitives/primitives.zig");
 
 const B160 = primitives.B160;
 const B256 = primitives.B256;
