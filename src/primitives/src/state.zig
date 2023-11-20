@@ -37,6 +37,8 @@ pub const StorageSlot = struct {
 };
 
 pub const Account = struct {
+    const Self = @This();
+
     /// Balance of the account.
     info: AccountInfo,
     /// storage cache
@@ -45,78 +47,84 @@ pub const Account = struct {
     status: AccountStatus,
 
     /// Mark account as self destructed.
-    pub fn mark_selfdestruct(self: *Account) void {
+    pub fn mark_selfdestruct(self: *Self) void {
         self.status.SelfDestructed = true;
     }
 
     /// Unmark account as self destructed.
-    pub fn unmark_selfdestruct(self: *Account) void {
+    pub fn unmark_selfdestruct(self: *Self) void {
         self.status.SelfDestructed = false;
     }
 
     /// Is account marked for self destruct.
-    pub fn is_selfdestructed(self: *Account) bool {
+    pub fn is_selfdestructed(self: *Self) bool {
         return self.status.SelfDestructed;
     }
 
     /// Mark account as touched
-    pub fn mark_touch(self: *Account) void {
+    pub fn mark_touch(self: *Self) void {
         self.status.Touched = true;
     }
 
     /// Unmark the touch flag.
-    pub fn unmark_touch(self: *Account) void {
+    pub fn unmark_touch(self: *Self) void {
         self.status.Touched = false;
     }
 
     /// If account status is marked as touched.
-    pub fn is_touched(self: Account) bool {
+    pub fn is_touched(self: Self) bool {
         return self.status.Touched;
     }
 
     /// Mark account as newly created.
-    pub fn mark_created(self: *Account) void {
+    pub fn mark_created(self: *Self) void {
         self.status.Created = true;
     }
 
     /// Unmark created flag.
-    pub fn unmark_created(self: *Account) void {
+    pub fn unmark_created(self: *Self) void {
         self.status.Created = false;
     }
 
     /// If account status is marked as created.
-    pub fn is_created(self: Account) bool {
+    pub fn is_created(self: Self) bool {
         return self.status.Created;
     }
 
     /// Is account loaded as not existing from database
     /// This is needed for pre spurious dragon hardforks where
     /// existing and empty were two separate states.
-    pub fn is_loaded_as_not_existing(self: Account) bool {
+    pub fn is_loaded_as_not_existing(self: Self) bool {
         return self.status.LoadedAsNotExisting;
     }
 
     /// Is account empty, check if nonce and balance are zero and code is empty.
-    pub fn is_empty(self: Account) bool {
+    pub fn is_empty(self: Self) bool {
         return self.info.is_empty();
     }
 
     /// Create new account and mark it as non existing.
-    pub fn new_not_existing(allocator: std.mem.Allocator) !Account {
+    pub fn new_not_existing(allocator: std.mem.Allocator) !Self {
         var map = std.HashMap(std.math.big.int.Managed, StorageSlot, utils.BigIntContext(std.math.big.int.Managed), std.hash_map.default_max_load_percentage).init(allocator);
         defer map.deinit();
 
-        var default_account = try AccountInfo.init();
-
-        return Account{
-            .info = default_account,
+        return .{
+            .info = try AccountInfo.init(),
             .storage = map,
-            .status = AccountStatus{ .Loaded = false, .Created = false, .SelfDestructed = false, .Touched = false, .LoadedAsNotExisting = true },
+            .status = .{
+                .Loaded = false,
+                .Created = false,
+                .SelfDestructed = false,
+                .Touched = false,
+                .LoadedAsNotExisting = true,
+            },
         };
     }
 };
 
 pub const AccountStatus = struct {
+    const Self = @This();
+
     /// When account is loaded but not touched or interacted with.
     /// This is the default state.
     Loaded: bool,
@@ -131,13 +139,21 @@ pub const AccountStatus = struct {
     /// it became same state after EIP-161: State trie clearing
     LoadedAsNotExisting: bool,
 
-    pub fn init() AccountStatus {
-        return AccountStatus{ .Loaded = true, .Created = false, .SelfDestructed = false, .Touched = false, .LoadedAsNotExisting = false };
+    pub fn init() Self {
+        return .{
+            .Loaded = true,
+            .Created = false,
+            .SelfDestructed = false,
+            .Touched = false,
+            .LoadedAsNotExisting = false,
+        };
     }
 };
 
 /// AccountInfo account information.
 pub const AccountInfo = struct {
+    const Self = @This();
+
     /// Account balance.
     balance: std.math.big.int.Managed,
     /// Account nonce.
@@ -148,11 +164,11 @@ pub const AccountInfo = struct {
     /// inside of revm.
     code: ?bytecode.Bytecode,
 
-    pub fn init() !AccountInfo {
+    pub fn init() !Self {
         var managed = try std.math.big.int.Managed.initSet(std.heap.c_allocator, 0);
         defer managed.deinit();
 
-        return AccountInfo{
+        return .{
             .balance = managed,
             .nonce = 0,
             .code_hash = constants.Constants.KECCAK_EMPTY,
@@ -160,7 +176,7 @@ pub const AccountInfo = struct {
         };
     }
 
-    pub fn eq(self: AccountInfo, other: AccountInfo) bool {
+    pub fn eq(self: Self, other: Self) bool {
         return self.balance.toConst().eql(other.balance.toConst()) and self.nonce == other.nonce and self.code_hash.eql(other.code_hash);
     }
 
@@ -169,8 +185,8 @@ pub const AccountInfo = struct {
         nonce: u64,
         code_hash: bits.B256,
         code: bytecode.Bytecode,
-    ) AccountInfo {
-        return AccountInfo{
+    ) Self {
+        return .{
             .balance = balance,
             .nonce = nonce,
             .code_hash = code_hash,
@@ -178,29 +194,29 @@ pub const AccountInfo = struct {
         };
     }
 
-    pub fn is_empty(self: AccountInfo) bool {
+    pub fn is_empty(self: Self) bool {
         return self.balance.eqlZero() and self.nonce == 0 and (self.code_hash.eql(constants.Constants.KECCAK_EMPTY) or self.code_hash.eql(bits.B256.zero()));
     }
 
-    pub fn exists(self: AccountInfo) bool {
+    pub fn exists(self: Self) bool {
         return !self.is_empty();
     }
 
     /// Return bytecode hash associated with this account.
     /// If account does not have code, it return's `KECCAK_EMPTY` hash.
-    pub fn get_code_hash(self: AccountInfo) bits.B256 {
+    pub fn get_code_hash(self: *Self) bits.B256 {
         return self.code_hash;
     }
 
     /// Take bytecode from account. Code will be set to None.
-    pub fn take_bytecode(self: *AccountInfo) ?bytecode.Bytecode {
+    pub fn take_bytecode(self: *Self) ?bytecode.Bytecode {
         const y = self.code;
         self.code = null;
         return y;
     }
 
-    pub fn from_balance(balance: std.math.big.int.Managed) AccountInfo {
-        return AccountInfo{
+    pub fn from_balance(balance: std.math.big.int.Managed) Self {
+        return .{
             .balance = balance,
             .nonce = 0,
             .code_hash = constants.Constants.KECCAK_EMPTY,

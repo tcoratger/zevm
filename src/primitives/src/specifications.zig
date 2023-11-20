@@ -2,6 +2,8 @@ const std = @import("std");
 const expect = std.testing.expect;
 
 pub const SpecId = enum(u8) {
+    const Self = @This();
+
     /// Frontier - 0
     FRONTIER = 0,
     /// Frontier Thawing - Block 200000
@@ -38,12 +40,12 @@ pub const SpecId = enum(u8) {
     CANCUN = 17,
     LATEST = 18,
 
-    pub fn enabled(our: SpecId, other: SpecId) bool {
+    pub fn enabled(our: Self, other: Self) bool {
         return @intFromEnum(our) >= @intFromEnum(other);
     }
 
-    pub fn from_u8(spec_id: u8) SpecId {
-        return @as(SpecId, @enumFromInt(spec_id));
+    pub fn from_u8(spec_id: u8) Self {
+        return @as(Self, @enumFromInt(spec_id));
     }
 };
 

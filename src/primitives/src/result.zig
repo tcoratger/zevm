@@ -5,6 +5,8 @@ const utils = @import("./utils.zig");
 pub const ExecutionResultEnum = enum { Success, Revert, Halt };
 
 pub const ExecutionResult = union(ExecutionResultEnum) {
+    const Self = @This();
+
     /// Returned successfully
     Success: struct { reason: Eval, gas_used: u64, gas_refunded: u64, logs: log.Log, output: Output },
     /// Reverted by `REVERT` opcode that doesn't spend all gas.
@@ -19,12 +21,12 @@ pub const ExecutionResult = union(ExecutionResultEnum) {
     /// Returns if transaction execution is successful.
     /// 1 indicates success, 0 indicates revert.
     /// https://eips.ethereum.org/EIPS/eip-658
-    pub fn is_success(execution_result: ExecutionResult) bool {
-        return execution_result == ExecutionResultEnum.Success;
+    pub fn is_success(execution_result: Self) bool {
+        return execution_result == .Success;
     }
 
     /// Return logs, if execution is not successful, function will return empty vec.
-    pub fn logs(execution_result: ExecutionResult) log.Log {
+    pub fn logs(execution_result: Self) log.Log {
         return switch (execution_result) {
             .Success => execution_result.Success.logs,
             else => undefined,
@@ -41,11 +43,13 @@ pub const Eval = enum {
 pub const OutputEnum = enum { Call, Create };
 
 pub const Output = union(OutputEnum) {
+    const Self = @This();
+
     Call: struct { bytes: []u8 },
     Create: struct { bytes: []u8, option: ?u64 },
 
     /// Returns the output data of the execution output.
-    pub fn into_data(output: Output) []u8 {
+    pub fn into_data(output: Self) []u8 {
         return switch (output) {
             .Call => output.Call.bytes,
             .Create => output.Create.bytes,
@@ -53,7 +57,7 @@ pub const Output = union(OutputEnum) {
     }
 
     /// Returns the output data of the execution output.
-    pub fn data(output: *Output) *[]u8 {
+    pub fn data(output: *Self) *[]u8 {
         return switch (output.*) {
             .Call => &output.Call.bytes,
             .Create => &output.Create.bytes,

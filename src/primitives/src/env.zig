@@ -29,15 +29,15 @@ pub const Env = struct {
 
     /// Calculates the effective gas price of the transaction.
     pub fn effective_gas_price(self: Self, allocator: std.mem.Allocator) !std.math.big.int.Managed {
-        if (self.tx.gas_priority_fee == null) {
-            return self.tx.gas_price.clone();
-        } else {
+        if (self.tx.gas_priority_fee) |gf| {
             var basefee_plus_gas_priority_fee = try std.math.big.int.Managed.initSet(allocator, 0);
             defer basefee_plus_gas_priority_fee.deinit();
-            try basefee_plus_gas_priority_fee.add(&self.block.base_fee, &self.tx.gas_priority_fee.?);
+            try basefee_plus_gas_priority_fee.add(&self.block.base_fee, &gf);
 
             return if (std.math.big.int.Managed.order(self.tx.gas_price, basefee_plus_gas_priority_fee).compare(std.math.CompareOperator.lt)) self.tx.gas_price.clone() else basefee_plus_gas_priority_fee.clone();
         }
+
+        return self.tx.gas_price.clone();
     }
 
     /// Calculates the [EIP-4844] `data_fee` of the transaction.
@@ -270,7 +270,7 @@ pub const TxEnv = struct {
             .gas_limit = constants.Constants.UINT_64_MAX,
             .gas_price = try std.math.big.int.Managed.initSet(allocator, 0),
             .gas_priority_fee = null,
-            .transact_to = TransactTo{ .Call = .{ .to = bits.B160.from(0) } },
+            .transact_to = .{ .Call = .{ .to = bits.B160.from(0) } },
             .value = try std.math.big.int.Managed.initSet(allocator, 0),
             .data = undefined,
             .chain_id = null,
@@ -312,7 +312,7 @@ pub const AnalysisKind = enum {
     Analyze,
 
     pub fn default() Self {
-        return Self.Analyze;
+        return .Analyze;
     }
 };
 
@@ -369,7 +369,7 @@ pub const CfgEnv = struct {
             .perf_analyze_created_bytecodes = AnalysisKind.default(),
             .limit_contract_code_size = null,
             .disable_coinbase_tip = false,
-            .kzg_settings = kzg_env.EnvKzgSettings.Default,
+            .kzg_settings = .Default,
             .memory_limit = (1 << 32) - 1,
             .disable_balance_check = false,
             .disable_block_gas_limit = false,
