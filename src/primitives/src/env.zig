@@ -22,22 +22,23 @@ pub const Env = struct {
     pub fn default(allocator: std.mem.Allocator) !Self {
         return .{
             .cfg = CfgEnv.default(),
-            .block = try BlockEnv.default(allocator),
+            .block = BlockEnv.default(),
             .tx = try TxEnv.default(allocator),
         };
     }
 
     /// Calculates the effective gas price of the transaction.
-    pub fn effective_gas_price(self: Self, allocator: std.mem.Allocator) !std.math.big.int.Managed {
-        if (self.tx.gas_priority_fee) |gf| {
-            var basefee_plus_gas_priority_fee = try std.math.big.int.Managed.initSet(allocator, 0);
-            defer basefee_plus_gas_priority_fee.deinit();
-            try basefee_plus_gas_priority_fee.add(&self.block.base_fee, &gf);
+    pub fn effective_gas_price(self: Self) !u256 {
+        if (self.tx.gas_priority_fee) |gas_priority_fee| {
+            const basefee_plus_gas_priority_fee = self.block.base_fee + gas_priority_fee;
 
-            return if (std.math.big.int.Managed.order(self.tx.gas_price, basefee_plus_gas_priority_fee).compare(std.math.CompareOperator.lt)) self.tx.gas_price.clone() else basefee_plus_gas_priority_fee.clone();
+            return switch (self.tx.gas_price < basefee_plus_gas_priority_fee) {
+                true => self.tx.gas_price,
+                false => basefee_plus_gas_priority_fee,
+            };
         }
 
-        return self.tx.gas_price.clone();
+        return self.tx.gas_price;
     }
 
     /// Calculates the [EIP-4844] `data_fee` of the transaction.
@@ -54,7 +55,6 @@ pub const Env = struct {
 
     /// Frees all associated memory.
     pub fn deinit(self: *Self) void {
-        self.block.deinit();
         self.tx.deinit();
     }
 };
@@ -83,23 +83,23 @@ pub const BlockEnv = struct {
     const Self = @This();
 
     /// The number of ancestor blocks of this block (block height)
-    number: std.math.big.int.Managed,
+    number: u256,
     /// Coinbase or miner or address that created and signed the block.
     ///
     /// This is the receiver address of all the gas spent in the block.
     coinbase: bits.B160,
     /// The timestamp of the block in seconds since the UNIX epoch.
-    timestamp: std.math.big.int.Managed,
+    timestamp: u256,
     /// The gas limit of the block
-    gas_limit: std.math.big.int.Managed,
+    gas_limit: u256,
     /// The base fee per gas, added in the London upgrade with [EIP-1559].
     ///
     /// [EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
-    base_fee: std.math.big.int.Managed,
+    base_fee: u256,
     /// The difficulty of the block.
     ///
     /// Unused after the Paris (AKA the merge) upgrade, and replaced by `prevrandao`.
-    difficulty: std.math.big.int.Managed,
+    difficulty: u256,
     /// The output of the randomness beacon provided by the beacon chain.
     ///
     /// Replaces `difficulty` after the Paris (AKA the merge) upgrade with [EIP-4399].
@@ -118,14 +118,14 @@ pub const BlockEnv = struct {
     blob_excess_gas_and_price: ?BlobExcessGasAndPrice,
 
     /// Returns the "default value" for each type.
-    pub fn default(allocator: std.mem.Allocator) !Self {
+    pub fn default() Self {
         return .{
-            .number = try std.math.big.int.Managed.initSet(allocator, 0),
+            .number = 0,
             .coinbase = bits.B160.from(0),
-            .timestamp = try std.math.big.int.Managed.initSet(allocator, 0),
-            .gas_limit = try std.math.big.int.Managed.initSet(allocator, 0),
-            .base_fee = try std.math.big.int.Managed.initSet(allocator, 0),
-            .difficulty = try std.math.big.int.Managed.initSet(allocator, 0),
+            .timestamp = 0,
+            .gas_limit = 0,
+            .base_fee = 0,
+            .difficulty = 0,
             .prev_randao = bits.B256.zero(),
             .blob_excess_gas_and_price = BlobExcessGasAndPrice.new(0),
         };
@@ -134,7 +134,10 @@ pub const BlockEnv = struct {
     /// Takes `blob_excess_gas` saves it inside env
     /// and calculates `blob_fee` with [`BlobGasAndFee`].
     pub fn set_blob_excess_gas_and_price(self: *Self, excess_blob_gas: u64) void {
-        self.blob_excess_gas_and_price = .{ .excess_blob_gas = excess_blob_gas, .excess_blob_gasprice = 0 };
+        self.blob_excess_gas_and_price = .{
+            .excess_blob_gas = excess_blob_gas,
+            .excess_blob_gasprice = 0,
+        };
     }
 
     /// See [EIP-4844] and [`crate::calc_blob_gasprice`].
@@ -154,15 +157,6 @@ pub const BlockEnv = struct {
     pub fn get_blob_excess_gas(self: Self) ?u64 {
         return self.blob_excess_gas_and_price.?.excess_blob_gas;
     }
-
-    /// Frees all associated memory.
-    pub fn deinit(self: *Self) void {
-        self.number.deinit();
-        self.timestamp.deinit();
-        self.gas_limit.deinit();
-        self.base_fee.deinit();
-        self.difficulty.deinit();
-    }
 };
 
 /// Create scheme
@@ -172,7 +166,7 @@ pub const CreateScheme = union(enum) {
     /// Create scheme of `CREATE2`.
     Create2: struct {
         /// Salt.
-        salt: std.math.big.int.Managed,
+        salt: u256,
     },
 };
 
@@ -192,12 +186,12 @@ pub const TransactTo = union(enum) {
 
     /// Creates a contract.
     pub fn create() Self {
-        return .{ .Create = .{ .scheme = CreateScheme.Create } };
+        return .{ .Create = .{ .scheme = .Create } };
     }
 
     /// Creates a contract with the given salt using `CREATE2`.
-    pub fn create2(salt: std.math.big.int.Managed) Self {
-        return .{ .Create = .{ .scheme = CreateScheme{ .Create2 = .{ .salt = salt } } } };
+    pub fn create2(salt: u256) Self {
+        return .{ .Create = .{ .scheme = .{ .Create2 = .{ .salt = salt } } } };
     }
 
     /// Returns `true` if the transaction is `Call`.
@@ -226,11 +220,11 @@ pub const TxEnv = struct {
     /// The gas limit of the transaction.
     gas_limit: u64,
     /// The gas price of the transaction.
-    gas_price: std.math.big.int.Managed,
+    gas_price: u256,
     /// The destination of the transaction.
     transact_to: TransactTo,
     /// The value sent to `transact_to`.
-    value: std.math.big.int.Managed,
+    value: u256,
     /// The data of the transaction.
     data: []u8,
     /// The nonce of the transaction. If set to `None`, no checks are performed.
@@ -246,13 +240,13 @@ pub const TxEnv = struct {
     /// Added in [EIP-2930].
     ///
     /// [EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
-    access_list: std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(std.math.big.int.Managed) })),
+    access_list: std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(u256) })),
     /// The priority fee per gas.
     ///
     /// Incorporated as part of the London upgrade via [EIP-1559].
     ///
     /// [EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
-    gas_priority_fee: ?std.math.big.int.Managed,
+    gas_priority_fee: ?u256,
     /// The list of blob versioned hashes. Per EIP there should be at least
     /// one blob present if [`Self::max_fee_per_blob_gas`] is `Some`.
     ///
@@ -265,20 +259,20 @@ pub const TxEnv = struct {
     /// Incorporated as part of the Cancun upgrade via [EIP-4844].
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
-    max_fee_per_blob_gas: ?std.math.big.int.Managed,
+    max_fee_per_blob_gas: ?u256,
 
     pub fn default(allocator: std.mem.Allocator) !Self {
         return .{
             .caller = bits.B160.from(0),
             .gas_limit = constants.Constants.UINT_64_MAX,
-            .gas_price = try std.math.big.int.Managed.initSet(allocator, 0),
+            .gas_price = 0,
             .gas_priority_fee = null,
             .transact_to = .{ .Call = .{ .to = bits.B160.from(0) } },
-            .value = try std.math.big.int.Managed.initSet(allocator, 0),
+            .value = 0,
             .data = undefined,
             .chain_id = null,
             .nonce = null,
-            .access_list = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(std.math.big.int.Managed) })).init(allocator),
+            .access_list = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(u256) })).init(allocator),
             .blob_hashes = std.ArrayList(bits.B256).init(allocator),
             .max_fee_per_blob_gas = null,
         };
@@ -293,13 +287,8 @@ pub const TxEnv = struct {
 
     /// Frees all associated memory.
     pub fn deinit(self: *Self) void {
-        self.gas_price.deinit();
-        self.value.deinit();
         self.access_list.deinit();
         self.blob_hashes.deinit();
-        if (self.gas_priority_fee != null) {
-            self.gas_priority_fee.?.deinit();
-        }
     }
 };
 
@@ -368,7 +357,7 @@ pub const CfgEnv = struct {
     pub fn default() Self {
         return .{
             .chain_id = 1,
-            .spec_id = specifications.SpecId.LATEST,
+            .spec_id = .LATEST,
             .perf_analyze_created_bytecodes = AnalysisKind.default(),
             .limit_contract_code_size = null,
             .disable_coinbase_tip = false,
@@ -409,44 +398,39 @@ pub const CfgEnv = struct {
 };
 
 test "Block env: Init" {
-    var block_env = try BlockEnv.default(std.testing.allocator);
-    defer block_env.deinit();
+    var block_env = BlockEnv.default();
 
-    var managed_int = try std.math.big.int.Managed.initSet(std.testing.allocator, 0);
-    defer managed_int.deinit();
-
-    try expect(block_env.base_fee.eql(managed_int));
-    try expect(block_env.number.eql(managed_int));
-    try expect(block_env.timestamp.eql(managed_int));
-    try expect(block_env.gas_limit.eql(managed_int));
-    try expect(block_env.difficulty.eql(managed_int));
-    try expect(block_env.blob_excess_gas_and_price.?.eql(BlobExcessGasAndPrice{ .excess_blob_gas = 0, .excess_blob_gasprice = 1 }));
+    try expectEqual(@as(u256, 0), block_env.base_fee);
+    try expectEqual(@as(u256, 0), block_env.number);
+    try expectEqual(@as(u256, 0), block_env.timestamp);
+    try expectEqual(@as(u256, 0), block_env.gas_limit);
+    try expectEqual(@as(u256, 0), block_env.difficulty);
+    try expect(block_env.blob_excess_gas_and_price.?.eql(.{ .excess_blob_gas = 0, .excess_blob_gasprice = 1 }));
     try expectEqual(
-        block_env.coinbase,
         bits.B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } },
+        block_env.coinbase,
     );
     try expect(block_env.prev_randao.?.is_zero());
 }
 
 test "Block env: set_blob_excess_gas_and_price and get_blob_excess_gas" {
-    var block_env = try BlockEnv.default(std.testing.allocator);
-    defer block_env.deinit();
-
-    var managed_int = try std.math.big.int.Managed.initSet(std.testing.allocator, 0);
-    defer managed_int.deinit();
+    var block_env = BlockEnv.default();
 
     block_env.set_blob_excess_gas_and_price(10);
 
-    try expectEqual(block_env.blob_excess_gas_and_price.?.excess_blob_gas, 10);
-    try expectEqual(block_env.get_blob_excess_gas(), 10);
-    try expectEqual(block_env.get_blob_gasprice(), 0);
+    try expectEqual(@as(u64, 10), block_env.blob_excess_gas_and_price.?.excess_blob_gas);
+    try expectEqual(@as(?u64, 10), block_env.get_blob_excess_gas());
+    try expectEqual(@as(?u64, 0), block_env.get_blob_gasprice());
 }
 
 test "Block env: new" {
     try expect(
-        BlobExcessGasAndPrice.new(0).eql(BlobExcessGasAndPrice{ .excess_blob_gas = 0, .excess_blob_gasprice = 1 }),
+        BlobExcessGasAndPrice.new(0).eql(.{
+            .excess_blob_gas = 0,
+            .excess_blob_gasprice = 1,
+        }),
     );
-    try expect(BlobExcessGasAndPrice.new(2314057).eql(BlobExcessGasAndPrice{
+    try expect(BlobExcessGasAndPrice.new(2314057).eql(.{
         .excess_blob_gas = 2314057,
         .excess_blob_gasprice = 1,
     }));
@@ -463,30 +447,32 @@ test "Block env: new" {
 test "TxEnv: get_total_blob_gas function" {
     var default_tx_env = try TxEnv.default(std.testing.allocator);
     default_tx_env.deinit();
-    try expect(default_tx_env.get_total_blob_gas() == 0);
+    try expectEqual(@as(u64, 0), default_tx_env.get_total_blob_gas());
 }
 
 test "TransactTo: call function" {
     try expectEqual(
-        TransactTo.call(bits.B160.from(18_446_744_073_709_551_615)),
         TransactTo{ .Call = .{ .to = bits.B160.from(18_446_744_073_709_551_615) } },
+        TransactTo.call(bits.B160.from(18_446_744_073_709_551_615)),
     );
 }
 
 test "TransactTo: create function" {
-    try expectEqual(TransactTo.create(), TransactTo{ .Create = .{ .scheme = CreateScheme.Create } });
+    try expectEqual(
+        TransactTo{ .Create = .{ .scheme = .Create } },
+        TransactTo.create(),
+    );
 }
 
 test "TransactTo: create2 function" {
-    var salt_mock = try std.math.big.int.Managed.initSet(std.testing.allocator, 10000000000000000000000000000000);
-    defer salt_mock.deinit();
-    try expectEqual(TransactTo.create2(salt_mock), TransactTo{ .Create = .{ .scheme = CreateScheme{ .Create2 = .{ .salt = salt_mock } } } });
+    try expectEqual(
+        TransactTo{ .Create = .{ .scheme = .{ .Create2 = .{ .salt = 10000000000000000000000000000000 } } } },
+        TransactTo.create2(10000000000000000000000000000000),
+    );
 }
 
 test "TransactTo: is_call function" {
-    var salt_mock = try std.math.big.int.Managed.initSet(std.testing.allocator, 10000000000000000000000000000000);
-    defer salt_mock.deinit();
-    var create2 = TransactTo.create2(salt_mock);
+    var create2 = TransactTo.create2(10000000000000000000000000000000);
     try expect(!create2.is_call());
 
     var call = TransactTo.call(bits.B160.from(18_446_744_073_709_551_615));
@@ -500,84 +486,66 @@ test "TransactTo: is_create function" {
     var call = TransactTo.call(bits.B160.from(18_446_744_073_709_551_615));
     try expect(!call.is_create());
 
-    var salt_mock = try std.math.big.int.Managed.initSet(std.testing.allocator, 10000000000000000000000000000000);
-    defer salt_mock.deinit();
-    var create2 = TransactTo.create2(salt_mock);
+    var create2 = TransactTo.create2(10000000000000000000000000000000);
     try expect(create2.is_create());
 }
 
 test "Env: effective_gas_price without gas_priority_fee" {
     var env_default = try Env.default(std.testing.allocator);
     defer env_default.deinit();
-    var effective_gas_price = try Env.effective_gas_price(env_default, std.testing.allocator);
-    defer effective_gas_price.deinit();
-    var expected = try std.math.big.int.Managed.initSet(std.testing.allocator, 0);
-    defer expected.deinit();
-    try expect(effective_gas_price.eql(expected));
+    try expectEqual(@as(u256, 0), try Env.effective_gas_price(env_default));
 }
 
 test "Env: effective_gas_price with gas_priority_fee returning gas_price" {
     var tx_env = TxEnv{
         .caller = bits.B160.from(0),
         .gas_limit = constants.Constants.UINT_64_MAX,
-        .gas_price = try std.math.big.int.Managed.initSet(std.testing.allocator, 1),
-        .gas_priority_fee = try std.math.big.int.Managed.initSet(std.testing.allocator, 10),
-        .transact_to = TransactTo{ .Call = .{ .to = bits.B160.from(0) } },
-        .value = try std.math.big.int.Managed.initSet(std.testing.allocator, 0),
+        .gas_price = 1,
+        .gas_priority_fee = 10,
+        .transact_to = .{ .Call = .{ .to = bits.B160.from(0) } },
+        .value = 0,
         .data = undefined,
         .chain_id = null,
         .nonce = null,
-        .access_list = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(std.math.big.int.Managed) })).init(std.testing.allocator),
+        .access_list = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(u256) })).init(std.testing.allocator),
         .blob_hashes = std.ArrayList(bits.B256).init(std.testing.allocator),
         .max_fee_per_blob_gas = null,
     };
     defer tx_env.deinit();
 
-    var env_env = Env{
-        .block = try BlockEnv.default(std.testing.allocator),
-        .cfg = CfgEnv.default(),
-        .tx = tx_env,
-    };
-    defer env_env.block.deinit();
-
-    var expected = try std.math.big.int.Managed.initSet(std.testing.allocator, 1);
-    defer expected.deinit();
-
-    var effective_gas_price = try Env.effective_gas_price(env_env, std.testing.allocator);
-    defer effective_gas_price.deinit();
-
-    try expect(effective_gas_price.eql(expected));
+    try expectEqual(
+        @as(u256, 1),
+        try Env.effective_gas_price(.{
+            .block = BlockEnv.default(),
+            .cfg = CfgEnv.default(),
+            .tx = tx_env,
+        }),
+    );
 }
 
 test "Env: effective_gas_price with gas_priority_fee returning gas_priority_fee + base_fee" {
     var tx_env = TxEnv{
         .caller = bits.B160.from(0),
         .gas_limit = constants.Constants.UINT_64_MAX,
-        .gas_price = try std.math.big.int.Managed.initSet(std.testing.allocator, 11),
-        .gas_priority_fee = try std.math.big.int.Managed.initSet(std.testing.allocator, 10),
-        .transact_to = TransactTo{ .Call = .{ .to = bits.B160.from(0) } },
-        .value = try std.math.big.int.Managed.initSet(std.testing.allocator, 0),
+        .gas_price = 11,
+        .gas_priority_fee = 10,
+        .transact_to = .{ .Call = .{ .to = bits.B160.from(0) } },
+        .value = 0,
         .data = undefined,
         .chain_id = null,
         .nonce = null,
-        .access_list = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(std.math.big.int.Managed) })).init(std.testing.allocator),
+        .access_list = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(u256) })).init(std.testing.allocator),
         .blob_hashes = std.ArrayList(bits.B256).init(std.testing.allocator),
         .max_fee_per_blob_gas = null,
     };
     defer tx_env.deinit();
 
-    var env_env = Env{
-        .block = try BlockEnv.default(std.testing.allocator),
-        .cfg = CfgEnv.default(),
-        .tx = tx_env,
-    };
-    defer env_env.block.deinit();
-
-    var expected = try std.math.big.int.Managed.initSet(std.testing.allocator, 10);
-    defer expected.deinit();
-
-    var effective_gas_price = try Env.effective_gas_price(env_env, std.testing.allocator);
-    defer effective_gas_price.deinit();
-
-    try expect(effective_gas_price.eql(expected));
+    try expectEqual(
+        @as(u256, 10),
+        try Env.effective_gas_price(.{
+            .block = BlockEnv.default(),
+            .cfg = CfgEnv.default(),
+            .tx = tx_env,
+        }),
+    );
 }
