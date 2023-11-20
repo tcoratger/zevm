@@ -4,11 +4,12 @@ const constants = @import("./gas_constants.zig");
 
 pub fn sstore_refund(
     comptime spec: specifications,
-    original: std.math.big.int.Managed,
-    current: std.math.big.int.Managed,
-    new: std.math.big.int.Managed,
+    original: u256,
+    current: u256,
+    new: u256,
     allocator: std.mem.Allocator,
 ) i64 {
+    _ = allocator;
     if (specifications.enabled(
         spec,
         specifications.ISTANBUL,
@@ -21,19 +22,19 @@ pub fn sstore_refund(
         if (current.eql(new)) {
             return 0;
         } else {
-            if (original.eql(current) and new.eqlZero()) {
+            if (original == current and new == 0) {
                 return sstore_clears_schedule;
             } else {
                 var refund: i64 = 0;
-                if (!original.eqlZero()) {
-                    if (current.eqlZero()) {
+                if (!(original == 0)) {
+                    if (current == 0) {
                         refund -= sstore_clears_schedule;
-                    } else if (new.eqlZero()) {
+                    } else if (new == 0) {
                         refund += sstore_clears_schedule;
                     }
                 }
 
-                if (original.eql(new)) {
+                if (original == new) {
                     var gas_sstore_reset_sload = if (specifications.enabled(spec, specifications.BERLIN)) .{
                         constants.Constants.SSTORE_RESET - constants.Constants.COLD_SLOAD_COST,
                         constants.Constants.WARM_STORAGE_READ_COST,
@@ -42,7 +43,7 @@ pub fn sstore_refund(
                         sload_cost(spec, false),
                     };
 
-                    if (original.eqlZero()) {
+                    if (original == 0) {
                         refund += @as(i64, constants.Constants.SSTORE_SET - gas_sstore_reset_sload[1]);
                     } else {
                         refund += @as(
@@ -56,12 +57,7 @@ pub fn sstore_refund(
             }
         }
     } else {
-        var zero = try std.math.big.int.Managed.initSet(
-            allocator,
-            0,
-        );
-        defer zero.deinit();
-        if (!current.eqlZero() and new.eqlZero()) {
+        if (!(current == 0) and new == 0) {
             return constants.Constants.REFUND_SSTORE_CLEARS;
         } else {
             return 0;
@@ -85,60 +81,58 @@ pub fn create2_cost(len: usize) ?u64 {
     }
 }
 
-pub fn log2floor(
-    value: std.math.big.int.Managed,
-) u64 {
-    std.debug.assert(!value.eqlZero());
-    var l: u64 = 256;
+// pub fn log2floor(value: u256) u64 {
+//     std.debug.assert(!value.eqlZero());
+//     var l: u64 = 256;
 
-    for (0..4) |i| {
-        var j = 3 - i;
+//     for (0..4) |i| {
+//         var j = 3 - i;
 
-        if (value.limbs[j] == 0) {
-            l -= 64;
-        } else {
-            l -= @as(u64, @clz(value.limbs[j]));
+//         if (value.limbs[j] == 0) {
+//             l -= 64;
+//         } else {
+//             l -= @as(u64, @clz(value.limbs[j]));
 
-            if (l == 0) {
-                return l;
-            } else {
-                return l - 1;
-            }
-        }
-    }
-    return l;
-}
+//             if (l == 0) {
+//                 return l;
+//             } else {
+//                 return l - 1;
+//             }
+//         }
+//     }
+//     return l;
+// }
 
-pub fn exp_cost(
-    comptime spec: specifications,
-    power: std.math.big.int.Managed,
-    allocator: std.mem.Allocator,
-) !?u64 {
-    if (power.eqlZero()) {
-        return constants.Constants.EXP;
-    } else {
-        // EIP-160: EXP cost increase
-        var gas_byte = try std.math.big.int.Managed.initSet(
-            allocator,
-            if (specifications.enabled(spec, specifications.SPURIOUS_DRAGON)) 50 else 10,
-        );
-        defer gas_byte.deinit();
+// pub fn exp_cost(
+//     comptime spec: specifications,
+//     power: std.math.big.int.Managed,
+//     allocator: std.mem.Allocator,
+// ) !?u64 {
+//     if (power.eqlZero()) {
+//         return constants.Constants.EXP;
+//     } else {
+//         // EIP-160: EXP cost increase
+//         var gas_byte = try std.math.big.int.Managed.initSet(
+//             allocator,
+//             if (specifications.enabled(spec, specifications.SPURIOUS_DRAGON)) 50 else 10,
+//         );
+//         defer gas_byte.deinit();
 
-        var gas = try std.math.big.int.Managed.initSet(allocator, constants.Constants.EXP);
-        defer gas.deinit();
+//         var gas = try std.math.big.int.Managed.initSet(allocator, constants.Constants.EXP);
+//         defer gas.deinit();
 
-        var coeff = try std.math.big.int.Managed.initSet(allocator, log2floor(power) / 8 + 1);
-        defer coeff.deinit();
+//         var coeff = try std.math.big.int.Managed.initSet(allocator, log2floor(power) / 8 + 1);
+//         defer coeff.deinit();
 
-        try gas.add(&gas, &gas_byte.mul(&gas_byte, &coeff));
+//         try gas.add(&gas, &gas_byte.mul(&gas_byte, &coeff));
 
-        if (gas.to(u64) == error.TargetTooSmall) {
-            return null;
-        } else {
-            return gas;
-        }
-    }
-}
+//         if (gas.to(u64) == error.TargetTooSmall) {
+//             return null;
+//         } else {
+//             return gas;
+//         }
+//     }
+// }
 
 pub fn verylowcopy_cost(len: u64) ?u64 {
     const wordd = len / 32;
@@ -256,9 +250,9 @@ pub fn sload_cost(comptime spec: specifications, is_cold: bool) u64 {
 
 pub fn sstore_cost(
     comptime spec: specifications,
-    original: std.math.big.int.Managed,
-    current: std.math.big.int.Managed,
-    new: std.math.big.int.Managed,
+    original: u256,
+    current: u256,
+    new: u256,
     gas: u64,
     is_cold: bool,
 ) ?u64 {
@@ -277,7 +271,7 @@ pub fn sstore_cost(
     const gas_cost = if (specifications.enabled(
         spec,
         specifications.ISTANBUL,
-    )) (if (!new.eql(current) and original.eql(current)) (if (original.eqlZero()) constants.Constants.SSTORE_SET else gas_sload_sstore_reset[1]) else gas_sload_sstore_reset[0]) else if (current.eqlZero() and !new.eqlZero()) constants.Constants.SSTORE_SET else gas_sload_sstore_reset[1];
+    )) (if (!(new == current) and original == current) (if (original == 0) constants.Constants.SSTORE_SET else gas_sload_sstore_reset[1]) else gas_sload_sstore_reset[0]) else if (current == 0 and !(new == 0)) constants.Constants.SSTORE_SET else gas_sload_sstore_reset[1];
 
     return if (specifications.enabled(
         spec,

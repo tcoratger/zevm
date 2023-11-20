@@ -30,20 +30,20 @@ pub const B256 = struct {
     }
 
     /// Create a new fixed-hash from big number.
-    pub fn from(fr: std.math.big.int.Managed, allocator: std.mem.Allocator) !Self {
+    pub fn from(fr: u256, allocator: std.mem.Allocator) !Self {
         var fr_bytes = std.ArrayList(u8).init(allocator);
         defer fr_bytes.deinit();
+        try fr_bytes.appendNTimes(0, 32 - 8 * 4);
 
-        const fr_limbs = fr.toConst().limbs;
-        var nbr_limbs = fr_limbs.len;
+        var buf: [32]u8 = [_]u8{0} ** 32;
 
-        std.debug.assert(nbr_limbs <= 4);
-
-        try fr_bytes.appendNTimes(0, 32 - 8 * nbr_limbs);
-
-        while (nbr_limbs > 0) : (nbr_limbs -= 1) {
-            try fr_bytes.appendSlice(&utils.u8_bytes_from_u64(fr_limbs[nbr_limbs - 1]));
-        }
+        std.mem.writeInt(
+            u256,
+            &buf,
+            fr,
+            .big,
+        );
+        try fr_bytes.appendSlice(&buf);
 
         return .{ .bytes = fr_bytes.items[0..32].* };
     }
@@ -170,15 +170,13 @@ test "B256: as_bytes function" {
 }
 
 test "B256: from function" {
-    var bigint_mock = try std.math.big.int.Managed.initSet(std.testing.allocator, 1000000000);
-    defer bigint_mock.deinit();
+    try expect(
+        (try B256.from(1000000000, std.testing.allocator)).eql(.{ .bytes = [32]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 59, 154, 202, 0 } }),
+    );
 
-    try expect((try B256.from(bigint_mock, std.testing.allocator)).eql(B256{ .bytes = [32]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 59, 154, 202, 0 } }));
-
-    var bigint_mock1 = try std.math.big.int.Managed.initSet(std.testing.allocator, constants.Constants.UINT_256_MAX);
-    defer bigint_mock1.deinit();
-
-    try expect((try B256.from(bigint_mock1, std.testing.allocator)).eql(B256{ .bytes = [32]u8{ 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 } }));
+    try expect(
+        (try B256.from(constants.Constants.UINT_256_MAX, std.testing.allocator)).eql(.{ .bytes = [32]u8{ 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 } }),
+    );
 }
 
 test "B160: as_bytes function" {

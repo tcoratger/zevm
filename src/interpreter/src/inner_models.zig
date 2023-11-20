@@ -26,7 +26,7 @@ pub const CreateInputs = struct {
     /// The create scheme.
     scheme: primitives.CreateScheme,
     /// The value to transfer.
-    value: std.math.big.int.Managed,
+    value: u256,
     /// The init code of the contract.
     init_code: []u8,
     /// The gas limit of the call.
@@ -101,16 +101,16 @@ pub const CallContext = struct {
     /// The address the contract code was loaded from, if any.
     code_address: [20]u8,
     /// Apparent value of the EVM.
-    apparent_value: std.math.big.int.Managed,
+    apparent_value: u256,
     /// The scheme used for the call.
     scheme: CallScheme,
 
-    pub fn default(allocator: std.mem.Allocator) !Self {
+    pub fn default() !Self {
         return .{
             .address = [20]u8{0},
             .caller = [20]u8{0},
             .code_address = [20]u8{0},
-            .apparent_value = try std.math.big.int.Managed.initSet(allocator, 0),
+            .apparent_value = 0,
             .scheme = CallScheme.Call,
         };
     }
@@ -128,7 +128,7 @@ pub const Transfer = struct {
     /// The target address.
     target: [20]u8,
     /// The transfer value.
-    value: std.math.big.int.Managed,
+    value: u256,
 };
 
 /// Result of a call that resulted in a self destruct.
