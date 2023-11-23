@@ -1,8 +1,11 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
+
 const State = @import("../../primitives/primitives.zig").State;
 const TransientStorage = @import("../../primitives/primitives.zig").TransientStorage;
 const Log = @import("../../primitives/primitives.zig").Log;
 const SpecId = @import("../../primitives/primitives.zig").SpecId;
+const Account = @import("../../primitives/primitives.zig").Account;
 
 pub const JournaledState = struct {
     const Self = @This();
@@ -12,7 +15,7 @@ pub const JournaledState = struct {
     /// EIP 1153 transient storage
     transient_storage: TransientStorage,
     /// logs
-    log: Log,
+    log: std.ArrayList(Log),
     /// how deep are we in call stack.
     depth: usize,
     /// journal with changes that happened between calls.
@@ -27,6 +30,40 @@ pub const JournaledState = struct {
     ///
     /// Note that addresses are sorted.
     precompile_addresses: std.ArrayList([20]u8),
+
+    /// Create new JournaledState.
+    ///
+    /// precompile_addresses is used to determine if address is precompile or not.
+    ///
+    /// Note: This function will journal state after Spurious Dragon fork.
+    /// And will not take into account if account is not existing or empty.
+    ///
+    /// # Note
+    ///
+    /// Precompile addresses should be sorted.
+    pub fn new(allocator: Allocator, spec: SpecId, precompile_addresses: std.ArrayList([20]u8)) Self {
+        return .{
+            .state = std.AutoHashMap([20]u8, Account).init(allocator),
+            .transient_storage = std.AutoHashMap(
+                std.meta.Tuple(&.{ [20]u8, u256 }),
+                u256,
+            ).init(allocator),
+            .log = std.ArrayList(Log).init(allocator),
+            .journal = std.ArrayList(std.ArrayListUnmanaged(JournalEntry)).init(allocator),
+            .depth = 0,
+            .spec = spec,
+            .precompile_addresses = precompile_addresses,
+        };
+    }
+
+    /// Frees the resources owned by this instance.
+    pub fn deinit(self: *Self) void {
+        self.state.deinit();
+        self.transient_storage.deinit();
+        self.log.deinit();
+        self.journal.deinit();
+        self.precompile_addresses.deinit();
+    }
 };
 
 /// Journal entries that are used to track changes to the state and are used to revert it.
