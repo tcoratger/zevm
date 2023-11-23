@@ -35,7 +35,7 @@ pub fn sstore_refund(
                 }
 
                 if (original == new) {
-                    var gas_sstore_reset_sload = if (specifications.enabled(spec, specifications.BERLIN)) .{
+                    const gas_sstore_reset_sload = if (specifications.enabled(spec, specifications.BERLIN)) .{
                         constants.Constants.SSTORE_RESET - constants.Constants.COLD_SLOAD_COST,
                         constants.Constants.WARM_STORAGE_READ_COST,
                     } else .{

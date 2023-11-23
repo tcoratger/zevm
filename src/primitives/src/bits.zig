@@ -124,7 +124,7 @@ pub const Serialize = struct {
         v[1] = 'x';
 
         var idx: usize = 2;
-        var first_nibble: u8 = bytes[0] >> 4;
+        const first_nibble: u8 = bytes[0] >> 4;
 
         if (first_nibble != 0 or !skip_leading_zero) {
             v[idx] = CHARS[@as(usize, first_nibble)];

@@ -214,7 +214,7 @@ test "Bytecode: to_check function" {
     var buf: [5]u8 = .{ 0, 1, 2, 3, 4 };
     var expected_buf: [38]u8 = .{ 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    var check = try Bytecode.new_raw(buf[0..]).to_check(std.testing.allocator);
+    const check = try Bytecode.new_raw(buf[0..]).to_check(std.testing.allocator);
     defer std.mem.Allocator.free(std.testing.allocator, check.bytecode);
     try expect(Bytecode.eql(check, Bytecode.new_checked(expected_buf[0..], 5)));
 }

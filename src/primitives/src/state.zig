@@ -282,7 +282,7 @@ test "Account: self destruct functions" {
 
     try map.put(0, .{ .original_value = 0, .present_value = 0 });
 
-    var default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.init();
 
     var account = Account{
         .info = default_account,
@@ -308,7 +308,7 @@ test "Account: touched functions" {
 
     try map.put(0, .{ .original_value = 0, .present_value = 0 });
 
-    var default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.init();
 
     var account = Account{
         .info = default_account,
@@ -329,7 +329,7 @@ test "Account: created functions" {
 
     try map.put(0, .{ .original_value = 0, .present_value = 0 });
 
-    var default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.init();
 
     var account = Account{
         .info = default_account,
@@ -355,7 +355,7 @@ test "Account: is_empty function" {
 
     try map.put(0, StorageSlot{ .original_value = 0, .present_value = 0 });
 
-    var default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.init();
 
     var account = Account{
         .info = default_account,
@@ -379,7 +379,7 @@ test "AccountStatus: default function" {
 test "AccountInfo: default function" {
     var buf: [1]u8 = .{0};
 
-    var default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.init();
 
     try expectEqual(@as(u256, 0), default_account.balance);
     try expectEqual(default_account.nonce, 0);
@@ -389,7 +389,7 @@ test "AccountInfo: default function" {
 }
 
 test "AccountInfo: eq function" {
-    var default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.init();
 
     try expect(AccountInfo.eq(default_account, default_account));
 }
@@ -397,7 +397,7 @@ test "AccountInfo: eq function" {
 test "AccountInfo: new function" {
     var buf: [1]u8 = .{0};
 
-    var accountInfo = AccountInfo.new(
+    const accountInfo = AccountInfo.new(
         0,
         0,
         constants.Constants.KECCAK_EMPTY,
@@ -418,13 +418,13 @@ test "AccountInfo: new function" {
 }
 
 test "AccountInfo: is_empty function" {
-    var default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.init();
 
     try expect(AccountInfo.is_empty(default_account));
 }
 
 test "AccountInfo: exists function" {
-    var default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.init();
 
     try expectEqual(
         false,
@@ -443,10 +443,10 @@ test "AccountInfo: code_hash function" {
 
 test "AccountInfo: take_bytecode function" {
     var buf: [1]u8 = .{0};
-    var default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.init();
 
     var accountInfo = default_account;
-    var result_take_bytecode = accountInfo.take_bytecode();
+    const result_take_bytecode = accountInfo.take_bytecode();
     try std.testing.expectEqualSlices(u8, result_take_bytecode.?.bytecode, buf[0..]);
     try expectEqual(@as(usize, 0), result_take_bytecode.?.state.Analysed.len);
     try expectEqual(@as(?bytecode.Bytecode, null), accountInfo.take_bytecode());

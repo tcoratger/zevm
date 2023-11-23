@@ -44,7 +44,7 @@ pub const CreateInputs = struct {
         nonce: u64,
         allocator: std.mem.Allocator,
     ) ![20]u8 {
-        var end: usize = 20;
+        const end: usize = 20;
         return switch (self.scheme) {
             .Create => (try primitives.Utils.create_address(
                 primitives.B160.from_slice(self.caller[0..end]),
@@ -69,7 +69,7 @@ pub const CreateInputs = struct {
         hash: primitives.B256,
         allocator: std.mem.Allocator,
     ) ![20]u8 {
-        var end: usize = 20;
+        const end: usize = 20;
         return switch (self.scheme) {
             .Create => (try primitives.Utils.create_address(
                 primitives.B160.from_slice(self.caller[0..end]),
@@ -184,7 +184,7 @@ test "CreateInputs: created_address_with_hash function with Create scheme" {
         .gas_limit = 4,
     };
 
-    var hash = B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } };
+    const hash = B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } };
 
     try expectEqual(
         [20]u8{ 4, 1, 133, 88, 123, 80, 98, 157, 3, 48, 181, 126, 60, 186, 109, 109, 136, 77, 127, 229 },
@@ -202,7 +202,7 @@ test "CreateInputs: created_address_with_hash function with Create2 scheme" {
         .gas_limit = 4,
     };
 
-    var hash = B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } };
+    const hash = B256{ .bytes = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 } };
 
     try expectEqual(
         [20]u8{ 21, 108, 197, 97, 104, 190, 154, 181, 81, 131, 139, 5, 178, 141, 203, 240, 157, 66, 125, 96 },
