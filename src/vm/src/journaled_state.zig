@@ -7,6 +7,10 @@ const Log = @import("../../primitives/primitives.zig").Log;
 const SpecId = @import("../../primitives/primitives.zig").SpecId;
 const Account = @import("../../primitives/primitives.zig").Account;
 
+const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
+const expectEqualSlices = std.testing.expectEqualSlices;
+
 pub const JournaledState = struct {
     const Self = @This();
 
@@ -54,6 +58,50 @@ pub const JournaledState = struct {
             .spec = spec,
             .precompile_addresses = precompile_addresses,
         };
+    }
+
+    /// Marks an account as touched, indicating its relevance for inclusion in the state.
+    ///
+    /// Touched accounts are crucial for state management operations like state clearing,
+    /// where empty touched accounts need removal from the state.
+    ///
+    /// # Arguments
+    /// - `address`: The address of the account to mark as touched.
+    pub fn touch(self: *Self, allocator: Allocator, address: *[20]u8) !void {
+        if (self.state.getPtr(address.*)) |account| {
+            const journal_len = self.journal.items.len;
+            try Self.touchAccount(
+                allocator,
+                if (journal_len == 0) return error.JournalIsEmpty else &self.journal.items[journal_len - 1],
+                address,
+                account,
+            );
+        }
+    }
+
+    /// Marks an account as touched within the provided journal.
+    /// If the account hasn't been touched previously, it updates the journal and sets the account's touch flag.
+    ///
+    /// # Arguments
+    /// - `journal`: A pointer to a dynamic array (`ArrayList`) of `JournalEntry` to log the account touch.
+    /// - `address`: A pointer to a 20-byte array representing the account address.
+    /// - `account`: A pointer to the account object to be marked as touched.
+    ///
+    /// # Errors
+    /// Returns an error if appending to the journal fails or if account touch marking encounters an issue.
+    pub fn touchAccount(
+        allocator: Allocator,
+        journal: *std.ArrayListUnmanaged(JournalEntry),
+        address: *[20]u8,
+        account: *Account,
+    ) !void {
+        if (!account.is_touched()) {
+            try journal.append(
+                allocator,
+                .{ .AccountTouched = .{ .address = address.* } },
+            );
+            account.mark_touch();
+        }
     }
 
     /// Frees the resources owned by this instance.
@@ -128,3 +176,114 @@ pub const JournalEntry = union(enum) {
     /// Revert: Revert to previous bytecode.
     CodeChange: struct { address: [20]u8 },
 };
+
+test "JournaledState: touchAccount an account not already touched" {
+    // Create a new account that does not exist using the testing allocator.
+    var account = try Account.new_not_existing(std.testing.allocator);
+
+    // Create a 20-byte address filled with zeros.
+    var address = [_]u8{0x00} ** 20;
+
+    // Initialize an ArrayList of JournalEntry for logging account touches and defer its deinit().
+    var journal = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal.deinit(std.testing.allocator);
+
+    // Ensure that the account's status initially indicates it hasn't been touched.
+    try expect(!account.status.Touched);
+
+    // Invoke the touchAccount function on JournaledState to mark the account as touched.
+    try JournaledState.touchAccount(
+        std.testing.allocator,
+        &journal,
+        &address,
+        &account,
+    );
+
+    // Define the expected journal entry representing the account touch event.
+    const expected_journal = [_]JournalEntry{.{ .AccountTouched = .{ .address = [_]u8{0x00} ** 20 } }};
+
+    // Assert that the actual journal items match the expected journal entry.
+    try expectEqualSlices(JournalEntry, &expected_journal, journal.items);
+
+    // Ensure that the account's status is updated to indicate it has been touched.
+    try expect(account.status.Touched);
+}
+
+test "JournaledState: touchAccount an account already touched" {
+    // Create a new account that does not exist using the testing allocator.
+    var account = try Account.new_not_existing(std.testing.allocator);
+
+    // Mark the account as touched to simulate an already touched account.
+    account.mark_touch();
+
+    // Create a 20-byte address filled with zeros.
+    var address = [_]u8{0x00} ** 20;
+
+    // Initialize an ArrayList of JournalEntry for logging account touches and defer its deinit().
+    var journal = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal.deinit(std.testing.allocator);
+
+    // Ensure that the account's status initially indicates it has been touched.
+    try expect(account.status.Touched);
+
+    // Invoke the touchAccount function on JournaledState.
+    // As the account is already touched, the function should not append anything to the journal.
+    try JournaledState.touchAccount(
+        std.testing.allocator,
+        &journal,
+        &address,
+        &account,
+    );
+
+    // Assert that the actual journal items are empty since the account was already touched.
+    try expect(journal.items.len == 0);
+
+    // Ensure that the account's status remains updated, confirming that touchAccount did not modify it.
+    try expect(account.status.Touched);
+}
+
+test "JournaledState: touch should mark the account as touched" {
+    // Create a 20-byte address filled with zeros.
+    var address = [_]u8{0x00} ** 20;
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+
+    // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
+    var journal_state = JournaledState.new(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(std.testing.allocator, .{ .AccountTouched = .{ .address = address } });
+
+    // Append the journal entry to the journal state's journal.
+    try journal_state.journal.append(journal_entry);
+
+    // Create a new account for the address in the state and ensure it's initially untouched.
+    try journal_state.state.put(address, try Account.new_not_existing(std.testing.allocator));
+    try expect(!journal_state.state.get(address).?.status.Touched);
+
+    // Invoke the 'touch' function on the journal state for the provided address.
+    try journal_state.touch(std.testing.allocator, &address);
+
+    // Define the expected journal entry representing the account touch event.
+    const expected_journal = [_]JournalEntry{
+        .{ .AccountTouched = .{ .address = [_]u8{0x00} ** 20 } },
+        .{ .AccountTouched = .{ .address = [_]u8{0x00} ** 20 } },
+    };
+
+    // Ensure the account at the address is marked as touched in the journal state.
+    try expect(journal_state.state.get(address).?.status.Touched);
+
+    // Assert that the actual journal items match the expected journal entry.
+    try expectEqualSlices(JournalEntry, &expected_journal, journal_state.journal.items[0].items);
+}

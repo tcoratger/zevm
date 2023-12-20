@@ -8,19 +8,15 @@ const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 
 /// EVM State is a mapping from addresses to accounts.
-pub const State = std.HashMap(
+pub const State = std.AutoHashMap(
     [20]u8,
     Account,
-    utils.BigIntContext([20]u8),
-    std.hash_map.default_max_load_percentage,
 );
 
 /// Structure used for EIP-1153 transient storage.
-pub const TransientStorage = std.HashMap(
+pub const TransientStorage = std.AutoHashMap(
     std.meta.Tuple(&.{ [20]u8, u256 }),
     u256,
-    utils.BigIntContext(std.meta.Tuple(&.{ [20]u8, u256 })),
-    std.hash_map.default_max_load_percentage,
 );
 
 pub const StorageSlot = struct {
