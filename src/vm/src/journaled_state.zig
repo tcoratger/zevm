@@ -105,6 +105,27 @@ pub const JournaledState = struct {
         }
     }
 
+    /// Performs cleanup and retrieves the modified state and logs as a tuple.
+    ///
+    /// This function finalizes the current state, clearing logs and freeing resources. It returns a
+    /// tuple containing the modified state and logs before the cleanup.
+    ///
+    /// # Returns
+    /// A tuple containing the modified state and logs after cleanup.
+    ///
+    /// # Errors
+    /// May return an error if there's a failure in cloning or clearing resources.
+    pub fn finalize(self: *Self) !std.meta.Tuple(&.{ State, std.ArrayList(Log) }) {
+        const state = try self.state.clone();
+        self.state.clearAndFree();
+        const logs = try self.log.clone();
+        self.log.clearAndFree();
+        self.journal.clearAndFree();
+        self.depth = 0;
+
+        return .{ state, logs };
+    }
+
     /// Frees the resources owned by this instance.
     pub fn deinit(self: *Self) void {
         self.state.deinit();
@@ -314,4 +335,78 @@ test "JournaledState: touch should return an error if the journal is empty" {
         error.JournalIsEmpty,
         journal_state.touch(std.testing.allocator, &address),
     );
+}
+
+test "JournaledState: finalize should clean up and return modified state" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Create a new JournaledState instance for testing with specific configurations.
+    var journal_state = JournaledState.new(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        std.ArrayList([20]u8).init(std.testing.allocator),
+    );
+    defer journal_state.deinit();
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(
+        std.testing.allocator,
+        .{ .AccountTouched = .{ .address = address } },
+    );
+
+    // Append the journal entry to the journal state's journal.
+    try journal_state.journal.append(journal_entry);
+
+    // Set the depth to a specific value.
+    journal_state.depth = 15;
+
+    // Put a new account into the state with the given address.
+    try journal_state.state.put(
+        address,
+        try Account.new_not_existing(std.testing.allocator),
+    );
+
+    // Append an entry to the log for the given address.
+    try journal_state.log.append(.{ .address = address });
+
+    // Assertions to check the initial state.
+    try expect(journal_state.depth != 0);
+    try expect(journal_state.state.count() != 0);
+    try expect(journal_state.journal.items.len != 0);
+    try expect(journal_state.log.items.len != 0);
+
+    // Finalize the journal state and retrieve the modified state and logs as a tuple.
+    var result = try journal_state.finalize();
+    defer result[0].deinit();
+    defer result[1].deinit();
+
+    // Initialize an expected log ArrayList for comparison and defer its deinitialization.
+    var expected_log = std.ArrayList(Log).init(std.testing.allocator);
+    defer expected_log.deinit();
+
+    // Append an expected log entry for the address.
+    try expected_log.append(.{ .address = address });
+
+    // Assertions to validate the modified state and logs after finalization.
+    try expect(result[0].count() == 1);
+    try expectEqual(
+        @as(?Account, try Account.new_not_existing(std.testing.allocator)),
+        result[0].get(address).?,
+    );
+    try expectEqualSlices(
+        Log,
+        expected_log.items,
+        result[1].items,
+    );
+
+    // Assertions to ensure the cleanup of the journal state.
+    try expect(journal_state.depth == 0);
+    try expect(journal_state.state.count() == 0);
+    try expect(journal_state.journal.items.len == 0);
+    try expect(journal_state.log.items.len == 0);
 }
