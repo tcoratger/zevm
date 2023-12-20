@@ -9,6 +9,7 @@ const Account = @import("../../primitives/primitives.zig").Account;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
+const expectError = std.testing.expectError;
 const expectEqualSlices = std.testing.expectEqualSlices;
 
 pub const JournaledState = struct {
@@ -286,4 +287,31 @@ test "JournaledState: touch should mark the account as touched" {
 
     // Assert that the actual journal items match the expected journal entry.
     try expectEqualSlices(JournalEntry, &expected_journal, journal_state.journal.items[0].items);
+}
+
+test "JournaledState: touch should return an error if the journal is empty" {
+    // Create a 20-byte address filled with zeros.
+    var address = [_]u8{0x00} ** 20;
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+
+    // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
+    var journal_state = JournaledState.new(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Create a new account for the address in the state and ensure it's initially untouched.
+    try journal_state.state.put(address, try Account.new_not_existing(std.testing.allocator));
+    try expect(!journal_state.state.get(address).?.status.Touched);
+
+    // Assert that calling 'touch' on an empty journal returns an expected error.
+    try expectError(
+        error.JournalIsEmpty,
+        journal_state.touch(std.testing.allocator, &address),
+    );
 }
