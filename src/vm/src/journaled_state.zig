@@ -122,8 +122,24 @@ pub const JournaledState = struct {
         self.log.clearAndFree();
         self.journal.clearAndFree();
         self.depth = 0;
-
         return .{ state, logs };
+    }
+
+    /// Retrieves the account associated with the provided address.
+    ///
+    /// This function attempts to fetch the account corresponding to the given address from the state.
+    /// If the account exists, it returns a pointer to it.
+    ///
+    /// # Arguments
+    /// - `address`: A 20-byte array representing the address of the account to retrieve.
+    ///
+    /// # Returns
+    /// A pointer to the `Account` if it exists in the state.
+    ///
+    /// # Errors
+    /// Returns an error `error.AccountExpectedToBeLoaded` if the account is expected to be loaded but is not found.
+    pub fn getAccount(self: *Self, address: [20]u8) !*Account {
+        return self.state.getPtr(address) orelse error.AccountExpectedToBeLoaded;
     }
 
     /// Frees the resources owned by this instance.
@@ -409,4 +425,35 @@ test "JournaledState: finalize should clean up and return modified state" {
     try expect(journal_state.state.count() == 0);
     try expect(journal_state.journal.items.len == 0);
     try expect(journal_state.log.items.len == 0);
+}
+
+test "JournaledState: account should return the account corresponding to the given address" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
+    var journal_state = JournaledState.new(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        std.ArrayList([20]u8).init(std.testing.allocator),
+    );
+    defer journal_state.deinit(); // Ensures cleanup after the test runs
+
+    // Create a new account instance (not existing initially) using the testing allocator.
+    const account = try Account.new_not_existing(std.testing.allocator);
+
+    // Expect an error when attempting to get an account that's expected to be loaded but isn't found.
+    try expectError(
+        error.AccountExpectedToBeLoaded,
+        journal_state.getAccount(address),
+    );
+
+    // Create a new account for the address in the state and ensure it's initially untouched.
+    try journal_state.state.put(address, account);
+
+    // Retrieve the account associated with the address from the JournaledState and compare it to the created account.
+    try expectEqual(
+        account,
+        (try journal_state.getAccount(address)).*, // Dereferencing the pointer to the retrieved account
+    );
 }
