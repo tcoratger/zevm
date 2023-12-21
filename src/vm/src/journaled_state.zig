@@ -6,6 +6,9 @@ const TransientStorage = @import("../../primitives/primitives.zig").TransientSto
 const Log = @import("../../primitives/primitives.zig").Log;
 const SpecId = @import("../../primitives/primitives.zig").SpecId;
 const Account = @import("../../primitives/primitives.zig").Account;
+const Bytecode = @import("../../primitives/primitives.zig").Bytecode;
+const Constants = @import("../../primitives/primitives.zig").Constants;
+const Utils = @import("../../primitives/primitives.zig").Utils;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
@@ -74,7 +77,7 @@ pub const JournaledState = struct {
             try Self.touchAccount(
                 allocator,
                 if (journal_len == 0) return error.JournalIsEmpty else &self.journal.items[journal_len - 1],
-                address,
+                address.*,
                 account,
             );
         }
@@ -93,13 +96,13 @@ pub const JournaledState = struct {
     pub fn touchAccount(
         allocator: Allocator,
         journal: *std.ArrayListUnmanaged(JournalEntry),
-        address: *[20]u8,
+        address: [20]u8,
         account: *Account,
     ) !void {
         if (!account.is_touched()) {
             try journal.append(
                 allocator,
-                .{ .AccountTouched = .{ .address = address.* } },
+                .{ .AccountTouched = .{ .address = address } },
             );
             account.mark_touch();
         }
@@ -140,6 +143,42 @@ pub const JournaledState = struct {
     /// Returns an error `error.AccountExpectedToBeLoaded` if the account is expected to be loaded but is not found.
     pub fn getAccount(self: *Self, address: [20]u8) !*Account {
         return self.state.getPtr(address) orelse error.AccountExpectedToBeLoaded;
+    }
+
+    /// Sets the code for the account associated with the provided address.
+    ///
+    /// This function updates the code for the account at the given address within the JournaledState.
+    /// It first retrieves the account, marks it as touched in the journal, records the code change,
+    /// and then updates the code and its hash in the account information.
+    ///
+    /// # Arguments
+    /// - `allocator`: The allocator used for memory allocation.
+    /// - `address`: A 20-byte array representing the address of the account to update the code for.
+    /// - `code`: The new bytecode to set for the account.
+    pub fn setCode(self: *Self, allocator: Allocator, address: [20]u8, code: Bytecode) !void {
+        // Retrieve the account associated with the provided address.
+        const account = try self.getAccount(address);
+
+        // Determine the length of the journal and get the last journal entry if available.
+        const journal_len = self.journal.items.len;
+        const last_journal = if (journal_len == 0) return error.JournalIsEmpty else &self.journal.items[journal_len - 1];
+
+        // Mark the account as touched in the journal to signify the upcoming code change.
+        try Self.touchAccount(
+            allocator,
+            last_journal,
+            address,
+            account,
+        );
+
+        // Append the code change to the journal for future reference.
+        try last_journal.append(allocator, .{ .CodeChange = .{ .address = address } });
+
+        // Update the account's code hash with the hash of the new code.
+        account.info.code_hash = code.hash_slow();
+
+        // Set the new bytecode as the code for the account.
+        account.info.code = code;
     }
 
     /// Frees the resources owned by this instance.
@@ -220,7 +259,7 @@ test "JournaledState: touchAccount an account not already touched" {
     var account = try Account.new_not_existing(std.testing.allocator);
 
     // Create a 20-byte address filled with zeros.
-    var address = [_]u8{0x00} ** 20;
+    const address = [_]u8{0x00} ** 20;
 
     // Initialize an ArrayList of JournalEntry for logging account touches and defer its deinit().
     var journal = std.ArrayListUnmanaged(JournalEntry){};
@@ -233,7 +272,7 @@ test "JournaledState: touchAccount an account not already touched" {
     try JournaledState.touchAccount(
         std.testing.allocator,
         &journal,
-        &address,
+        address,
         &account,
     );
 
@@ -255,7 +294,7 @@ test "JournaledState: touchAccount an account already touched" {
     account.mark_touch();
 
     // Create a 20-byte address filled with zeros.
-    var address = [_]u8{0x00} ** 20;
+    const address = [_]u8{0x00} ** 20;
 
     // Initialize an ArrayList of JournalEntry for logging account touches and defer its deinit().
     var journal = std.ArrayListUnmanaged(JournalEntry){};
@@ -269,7 +308,7 @@ test "JournaledState: touchAccount an account already touched" {
     try JournaledState.touchAccount(
         std.testing.allocator,
         &journal,
-        &address,
+        address,
         &account,
     );
 
@@ -456,4 +495,72 @@ test "JournaledState: account should return the account corresponding to the giv
         account,
         (try journal_state.getAccount(address)).*, // Dereferencing the pointer to the retrieved account
     );
+}
+
+test "JournaledState: setCode should set the code properly at the provided address" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+
+    // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
+    var journal_state = JournaledState.new(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(std.testing.allocator, .{ .AccountTouched = .{ .address = address } });
+
+    // Append the journal entry to the journal state's journal.
+    try journal_state.journal.append(journal_entry);
+
+    // Create a new account for the address in the state and ensure it's initially untouched.
+    try journal_state.state.put(address, try Account.new_not_existing(std.testing.allocator));
+
+    // Ensure that the newly created account is initially untouched.
+    try expect(!journal_state.state.get(address).?.status.Touched);
+
+    // Ensure that the code hash for the account is initially set to Constants.KECCAK_EMPTY.
+    try expectEqual(Constants.KECCAK_EMPTY, (try journal_state.getAccount(address)).info.code_hash);
+
+    // Define a buffer and create a Bytecode instance.
+    var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
+    const code = Bytecode.new_checked(buf[0..], 3);
+
+    // Set the code for the account at the specified address.
+    try journal_state.setCode(std.testing.allocator, address, code);
+
+    // Define the expected journal entry representing the account touch event and code change.
+    const expected_journal = [_]JournalEntry{
+        .{ .AccountTouched = .{ .address = [_]u8{0x00} ** 20 } },
+        .{ .AccountTouched = .{ .address = [_]u8{0x00} ** 20 } },
+        .{ .CodeChange = .{ .address = address } },
+    };
+
+    // Ensure that the account at the address is marked as touched after setting the code.
+    try expect(journal_state.state.get(address).?.status.Touched);
+
+    // Ensure that the code hash for the account matches the keccak256 hash of the provided code.
+    try expectEqual(
+        Utils.keccak256(code.original_bytes()),
+        (try journal_state.getAccount(address)).info.code_hash,
+    );
+
+    // Ensure that the code for the account matches the provided code.
+    try expectEqual(
+        @as(?Bytecode, code),
+        (try journal_state.getAccount(address)).info.code,
+    );
+
+    // Ensure that the actual journal entry matches the expected journal entry.
+    try expectEqualSlices(JournalEntry, &expected_journal, journal_state.journal.items[0].items);
 }
