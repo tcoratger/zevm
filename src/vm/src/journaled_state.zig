@@ -30,7 +30,7 @@ pub const JournaledState = struct {
     /// EIP 1153 transient storage
     transient_storage: TransientStorage,
     /// logs
-    log: std.ArrayList(Log),
+    logs: std.ArrayList(Log),
     /// how deep are we in call stack.
     depth: usize,
     /// journal with changes that happened between calls.
@@ -63,7 +63,7 @@ pub const JournaledState = struct {
                 std.meta.Tuple(&.{ [20]u8, u256 }),
                 u256,
             ).init(allocator),
-            .log = std.ArrayList(Log).init(allocator),
+            .logs = std.ArrayList(Log).init(allocator),
             .journal = std.ArrayList(std.ArrayListUnmanaged(JournalEntry)).init(allocator),
             .depth = 0,
             .spec = spec,
@@ -128,8 +128,8 @@ pub const JournaledState = struct {
     pub fn finalize(self: *Self) !std.meta.Tuple(&.{ State, std.ArrayList(Log) }) {
         const state = try self.state.clone();
         self.state.clearAndFree();
-        const logs = try self.log.clone();
-        self.log.clearAndFree();
+        const logs = try self.logs.clone();
+        self.logs.clearAndFree();
         self.journal.clearAndFree();
         self.depth = 0;
         return .{ state, logs };
@@ -232,7 +232,7 @@ pub const JournaledState = struct {
     pub fn addCheckpoint(self: *Self) !JournalCheckpoint {
         // Create a checkpoint representing the current state of the logs and journal.
         const checkpoint: JournalCheckpoint = .{
-            .log_i = self.log.items.len, // Index of logs at this checkpoint.
+            .log_i = self.logs.items.len, // Index of logs at this checkpoint.
             .journal_i = self.journal.items.len, // Index of journal entries at this checkpoint.
         };
 
@@ -287,14 +287,14 @@ pub const JournaledState = struct {
     /// # Errors
     /// May return an error if appending to the log fails.
     pub fn addLog(self: *Self, lg: Log) !void {
-        try self.log.append(lg);
+        try self.logs.append(lg);
     }
 
     /// Frees the resources owned by this instance.
     pub fn deinit(self: *Self) void {
         self.state.deinit();
         self.transient_storage.deinit();
-        self.log.deinit();
+        self.logs.deinit();
         self.journal.deinit();
         self.precompile_addresses.deinit();
     }
@@ -536,13 +536,13 @@ test "JournaledState: finalize should clean up and return modified state" {
     );
 
     // Append an entry to the log for the given address.
-    try journal_state.log.append(.{ .address = address });
+    try journal_state.logs.append(.{ .address = address });
 
     // Assertions to check the initial state.
     try expect(journal_state.depth != 0);
     try expect(journal_state.state.count() != 0);
     try expect(journal_state.journal.items.len != 0);
-    try expect(journal_state.log.items.len != 0);
+    try expect(journal_state.logs.items.len != 0);
 
     // Finalize the journal state and retrieve the modified state and logs as a tuple.
     var result = try journal_state.finalize();
@@ -572,7 +572,7 @@ test "JournaledState: finalize should clean up and return modified state" {
     try expect(journal_state.depth == 0);
     try expect(journal_state.state.count() == 0);
     try expect(journal_state.journal.items.len == 0);
-    try expect(journal_state.log.items.len == 0);
+    try expect(journal_state.logs.items.len == 0);
 }
 
 test "JournaledState: account should return the account corresponding to the given address" {
@@ -778,13 +778,13 @@ test "JournaledState: addLog should push a new log to the journaled state" {
     try expected_log.append(.{ .address = address });
 
     // Ensure the initial length of the log in the JournaledState is 0.
-    try expect(journal_state.log.items.len == 0);
+    try expect(journal_state.logs.items.len == 0);
 
     // Add a log entry to the JournaledState for the provided address.
     try journal_state.addLog(.{ .address = address });
 
     // Ensure that the resulting log in the JournaledState matches the expected log.
-    try expectEqualSlices(Log, expected_log.items, journal_state.log.items);
+    try expectEqualSlices(Log, expected_log.items, journal_state.logs.items);
 }
 
 test "JournaledState: addCheckpoint should add a checkpoint in the journaled state" {
@@ -800,7 +800,7 @@ test "JournaledState: addCheckpoint should add a checkpoint in the journaled sta
     defer journal_state.deinit();
 
     // Appends an account touch event to the log multiple times.
-    try journal_state.log.appendNTimes(.{ .address = address }, 10);
+    try journal_state.logs.appendNTimes(.{ .address = address }, 10);
 
     // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
     var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
