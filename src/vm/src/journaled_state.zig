@@ -181,6 +181,44 @@ pub const JournaledState = struct {
         account.info.code = code;
     }
 
+    /// Increments the nonce of the specified account and records the change in the journal.
+    ///
+    /// This function increments the nonce of the provided account within the JournaledState.
+    /// It marks the account as touched in the journal, records the nonce change, and increments the nonce value.
+    ///
+    /// # Arguments
+    /// - `allocator`: The allocator used for memory allocation.
+    /// - `address`: A 20-byte array representing the address of the account to increment the nonce for.
+    ///
+    /// # Returns
+    /// An optional u64 representing the incremented nonce value on success, or null if the maximum value is reached.
+    pub fn incrementNonce(self: *Self, allocator: Allocator, address: [20]u8) !?u64 {
+        const account = try self.getAccount(address);
+
+        // Check if the account's nonce is at the maximum value.
+        if (account.info.nonce == std.math.maxInt(u64)) return null;
+
+        const journal_len = self.journal.items.len;
+        const last_journal = if (journal_len == 0) return error.JournalIsEmpty else &self.journal.items[journal_len - 1];
+
+        // Mark the account as touched in the journal to signify the upcoming nonce change.
+        try Self.touchAccount(
+            allocator,
+            last_journal,
+            address,
+            account,
+        );
+
+        // Append the nonce change to the journal for future reference.
+        try last_journal.append(allocator, .{ .NonceChange = .{ .address = address } });
+
+        // Increment the account's nonce.
+        account.info.nonce += 1;
+
+        // Return the incremented nonce.
+        return account.info.nonce;
+    }
+
     /// Frees the resources owned by this instance.
     pub fn deinit(self: *Self) void {
         self.state.deinit();
@@ -560,6 +598,64 @@ test "JournaledState: setCode should set the code properly at the provided addre
         @as(?Bytecode, code),
         (try journal_state.getAccount(address)).info.code,
     );
+
+    // Ensure that the actual journal entry matches the expected journal entry.
+    try expectEqualSlices(JournalEntry, &expected_journal, journal_state.journal.items[0].items);
+}
+
+test "JournaledState: incrementNonce should increment the nonce" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+
+    // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
+    var journal_state = JournaledState.new(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(std.testing.allocator, .{ .AccountTouched = .{ .address = address } });
+
+    // Append the journal entry to the journal state's journal.
+    try journal_state.journal.append(journal_entry);
+
+    // Create a new account for the address in the state and ensure it's initially untouched.
+    try journal_state.state.put(address, try Account.new_not_existing(std.testing.allocator));
+
+    // Ensure that the newly created account is initially untouched.
+    try expect(!journal_state.state.get(address).?.status.Touched);
+
+    // Ensure that the initial nonce for the account is zero.
+    try expect(journal_state.state.get(address).?.info.nonce == 0);
+
+    // Call the 'incrementNonce' function with the specified allocator and address.
+    const nonce = try journal_state.incrementNonce(std.testing.allocator, address);
+
+    // Define the expected journal entry representing the account touch event and nonce change.
+    const expected_journal = [_]JournalEntry{
+        .{ .AccountTouched = .{ .address = [_]u8{0x00} ** 20 } },
+        .{ .AccountTouched = .{ .address = [_]u8{0x00} ** 20 } },
+        .{ .NonceChange = .{ .address = address } },
+    };
+
+    // Ensure that the account at the address is marked as touched after setting the code.
+    try expect(journal_state.state.get(address).?.status.Touched);
+
+    // Ensure that the returned nonce is incremented by one from the initial value (0).
+    try expect(nonce == 1);
+
+    // Ensure that the account's nonce in the state matches the incremented value (1).
+    try expect(journal_state.state.get(address).?.info.nonce == 1);
 
     // Ensure that the actual journal entry matches the expected journal entry.
     try expectEqualSlices(JournalEntry, &expected_journal, journal_state.journal.items[0].items);
