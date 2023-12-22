@@ -15,6 +15,13 @@ const expectEqual = std.testing.expectEqual;
 const expectError = std.testing.expectError;
 const expectEqualSlices = std.testing.expectEqualSlices;
 
+pub const JournalCheckpoint = struct {
+    const Self = @This();
+
+    log_i: usize,
+    journal_i: usize,
+};
+
 pub const JournaledState = struct {
     const Self = @This();
 
@@ -217,6 +224,25 @@ pub const JournaledState = struct {
 
         // Return the incremented nonce.
         return account.info.nonce;
+    }
+
+    /// Creates a checkpoint in the journal to track state for potential reversion.
+    /// Increases the depth and appends an empty journal entry.
+    /// Returns a `JournalCheckpoint` representing log and journal indices at this checkpoint.
+    pub fn addCheckpoint(self: *Self) !JournalCheckpoint {
+        // Create a checkpoint representing the current state of the logs and journal.
+        const checkpoint: JournalCheckpoint = .{
+            .log_i = self.log.items.len, // Index of logs at this checkpoint.
+            .journal_i = self.journal.items.len, // Index of journal entries at this checkpoint.
+        };
+
+        // Increment the depth to track the checkpoint.
+        self.depth += 1;
+
+        // Append an empty ArrayListUnmanaged of JournalEntry for the new checkpoint.
+        try self.journal.append(std.ArrayListUnmanaged(JournalEntry){});
+
+        return checkpoint; // Return the created checkpoint.
     }
 
     /// Retrieves a value from the transient storage associated with the provided address and key.
@@ -727,7 +753,7 @@ test "JournaledState: tload should return the transient storage tied to the acco
     try expectEqual(@as(u256, 111), journal_state.tload(address, 10));
 }
 
-test "JournaledState: addLog should push a new log to the journal state" {
+test "JournaledState: addLog should push a new log to the journaled state" {
     // Create a 20-byte address filled with zeros.
     const address = [_]u8{0x00} ** 20;
 
@@ -754,4 +780,49 @@ test "JournaledState: addLog should push a new log to the journal state" {
 
     // Ensure that the resulting log in the JournaledState matches the expected log.
     try expectEqualSlices(Log, expected_log.items, journal_state.log.items);
+}
+
+test "JournaledState: addCheckpoint should add a checkpoint in the journaled state" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Create a new JournaledState instance for testing with specific configurations.
+    var journal_state = JournaledState.new(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        std.ArrayList([20]u8).init(std.testing.allocator),
+    );
+    defer journal_state.deinit();
+
+    // Appends an account touch event to the log multiple times.
+    try journal_state.log.appendNTimes(.{ .address = address }, 10);
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(std.testing.allocator, .{ .AccountTouched = .{ .address = address } });
+
+    // Appends the journal entry to the journal state's journal multiple times.
+    try journal_state.journal.appendNTimes(journal_entry, 5);
+
+    // Ensure that the depth of the journal state is initially 0.
+    try expect(journal_state.depth == 0);
+
+    // Create a checkpoint in the journal state.
+    const checkpoint = try journal_state.addCheckpoint();
+
+    // Ensure that the generated checkpoint matches the expected log and journal indices.
+    try expectEqual(@as(JournalCheckpoint, .{ .log_i = 10, .journal_i = 5 }), checkpoint);
+
+    // Ensure that the depth of the journal state is incremented to 1 after adding a checkpoint.
+    try expect(journal_state.depth == 1);
+
+    // Initialize an unmanaged ArrayList for the expected last journal entry and defer its deinitialization.
+    var expected_last_journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer expected_last_journal_entry.deinit(std.testing.allocator);
+
+    // Ensure the last journal entry matches the expected empty journal entry.
+    try expectEqualSlices(JournalEntry, expected_last_journal_entry.items, journal_state.journal.items[5].items);
 }
