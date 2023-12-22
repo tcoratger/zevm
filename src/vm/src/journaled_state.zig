@@ -15,11 +15,15 @@ const expectEqual = std.testing.expectEqual;
 const expectError = std.testing.expectError;
 const expectEqualSlices = std.testing.expectEqualSlices;
 
+/// Represents a checkpoint in the journal.
 pub const JournalCheckpoint = struct {
     const Self = @This();
 
-    log_i: usize,
-    journal_i: usize,
+    /// Index within the log.
+    log_index: usize,
+
+    /// Index within the journal.
+    journal_index: usize,
 };
 
 pub const JournaledState = struct {
@@ -232,8 +236,8 @@ pub const JournaledState = struct {
     pub fn addCheckpoint(self: *Self) !JournalCheckpoint {
         // Create a checkpoint representing the current state of the logs and journal.
         const checkpoint: JournalCheckpoint = .{
-            .log_i = self.logs.items.len, // Index of logs at this checkpoint.
-            .journal_i = self.journal.items.len, // Index of journal entries at this checkpoint.
+            .log_index = self.logs.items.len, // Index of logs at this checkpoint.
+            .journal_index = self.journal.items.len, // Index of journal entries at this checkpoint.
         };
 
         // Increment the depth to track the checkpoint.
@@ -819,7 +823,7 @@ test "JournaledState: addCheckpoint should add a checkpoint in the journaled sta
     const checkpoint = try journal_state.addCheckpoint();
 
     // Ensure that the generated checkpoint matches the expected log and journal indices.
-    try expectEqual(@as(JournalCheckpoint, .{ .log_i = 10, .journal_i = 5 }), checkpoint);
+    try expectEqual(@as(JournalCheckpoint, .{ .log_index = 10, .journal_index = 5 }), checkpoint);
 
     // Ensure that the depth of the journal state is incremented to 1 after adding a checkpoint.
     try expect(journal_state.depth == 1);
