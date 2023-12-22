@@ -245,6 +245,11 @@ pub const JournaledState = struct {
         return checkpoint; // Return the created checkpoint.
     }
 
+    /// Decreases the depth of the journal state after a checkpoint is committed.
+    pub fn checkpointCommit(self: *Self) void {
+        self.depth -= 1;
+    }
+
     /// Retrieves a value from the transient storage associated with the provided address and key.
     ///
     /// EIP-1153 introduces transient storage opcodes, enabling manipulation of state that behaves
@@ -825,4 +830,23 @@ test "JournaledState: addCheckpoint should add a checkpoint in the journaled sta
 
     // Ensure the last journal entry matches the expected empty journal entry.
     try expectEqualSlices(JournalEntry, expected_last_journal_entry.items, journal_state.journal.items[5].items);
+}
+
+test "JournaledState: checkpointCommit should decrease the depth of the journal by 1" {
+    // Create a new JournaledState instance for testing with specific configurations.
+    var journal_state = JournaledState.new(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        std.ArrayList([20]u8).init(std.testing.allocator),
+    );
+    defer journal_state.deinit();
+
+    // Set the depth of the journal state to a specific value (134 in this case).
+    journal_state.depth = 134;
+
+    // Commit the checkpoint, which should decrease the depth by 1.
+    journal_state.checkpointCommit();
+
+    // Ensure that the depth has been decremented by 1.
+    try expect(journal_state.depth == 133);
 }
