@@ -219,6 +219,32 @@ pub const JournaledState = struct {
         return account.info.nonce;
     }
 
+    /// Retrieves a value from the transient storage associated with the provided address and key.
+    ///
+    /// EIP-1153 introduces transient storage opcodes, enabling manipulation of state that behaves
+    /// similarly to storage but is discarded after every transaction.
+    ///
+    /// This function, TLOAD, mimics SLOAD by fetching a 32-byte word from the transient storage at the given address and key.
+    ///
+    /// If the value exists, it is returned; otherwise, a default value of 0 is returned.
+    ///
+    /// # Arguments
+    /// - `address`: A 20-byte array representing the address used for transient storage retrieval.
+    /// - `key`: A u256 value serving as the key for accessing data in the transient storage.
+    ///
+    /// # Returns
+    /// A u256 value retrieved from the transient storage if found, otherwise 0.
+    pub fn tload(self: *Self, address: [20]u8, key: u256) u256 {
+        // Attempt to retrieve the value from the transient storage using the provided address and key.
+        if (self.transient_storage.get(.{ address, key })) |value| {
+            // If the value exists in the transient storage, return it.
+            return value;
+        }
+
+        // Return 0 if the value does not exist in the transient storage.
+        return 0;
+    }
+
     /// Frees the resources owned by this instance.
     pub fn deinit(self: *Self) void {
         self.state.deinit();
@@ -659,4 +685,30 @@ test "JournaledState: incrementNonce should increment the nonce" {
 
     // Ensure that the actual journal entry matches the expected journal entry.
     try expectEqualSlices(JournalEntry, &expected_journal, journal_state.journal.items[0].items);
+}
+
+test "JournaledState: tload should return the transient storage tied to the account" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+
+    // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
+    var journal_state = JournaledState.new(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Verify that initially, the value tied to address and key 10 in the transient storage is 0.
+    try expectEqual(@as(u256, 0), journal_state.tload(address, 10));
+
+    // Store the value 111 in the transient storage tied to address and key 10.
+    try journal_state.transient_storage.put(.{ address, 10 }, 111);
+
+    // Verify that after storing, the value retrieved from transient storage tied to address and key 10 is 111.
+    try expectEqual(@as(u256, 111), journal_state.tload(address, 10));
 }
