@@ -245,6 +245,20 @@ pub const JournaledState = struct {
         return 0;
     }
 
+    /// Appends a log entry to the log associated with the JournaledState.
+    ///
+    /// This function facilitates adding a Log entry to the JournaledState's log.
+    /// The provided Log instance is appended to the log ArrayList within the JournaledState.
+    ///
+    /// # Arguments
+    /// - `lg`: A Log instance to be added to the log.
+    ///
+    /// # Errors
+    /// May return an error if appending to the log fails.
+    pub fn addLog(self: *Self, lg: Log) !void {
+        try self.log.append(lg);
+    }
+
     /// Frees the resources owned by this instance.
     pub fn deinit(self: *Self) void {
         self.state.deinit();
@@ -711,4 +725,33 @@ test "JournaledState: tload should return the transient storage tied to the acco
 
     // Verify that after storing, the value retrieved from transient storage tied to address and key 10 is 111.
     try expectEqual(@as(u256, 111), journal_state.tload(address, 10));
+}
+
+test "JournaledState: addLog should push a new log to the journal state" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Create a new JournaledState instance for testing with specific configurations.
+    var journal_state = JournaledState.new(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        std.ArrayList([20]u8).init(std.testing.allocator),
+    );
+    defer journal_state.deinit();
+
+    // Initialize an expected log ArrayList for comparison and defer its deinitialization.
+    var expected_log = std.ArrayList(Log).init(std.testing.allocator);
+    defer expected_log.deinit();
+
+    // Append an expected log entry for the address.
+    try expected_log.append(.{ .address = address });
+
+    // Ensure the initial length of the log in the JournaledState is 0.
+    try expect(journal_state.log.items.len == 0);
+
+    // Add a log entry to the JournaledState for the provided address.
+    try journal_state.addLog(.{ .address = address });
+
+    // Ensure that the resulting log in the JournaledState matches the expected log.
+    try expectEqualSlices(Log, expected_log.items, journal_state.log.items);
 }
