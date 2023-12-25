@@ -58,7 +58,7 @@ pub const Account = struct {
     info: AccountInfo,
     /// storage cache
     // Account status flags.
-    storage: std.HashMap(u256, StorageSlot, utils.BigIntContext(u256), std.hash_map.default_max_load_percentage),
+    storage: std.AutoHashMap(u256, StorageSlot),
     status: AccountStatus,
 
     /// Mark account as self destructed.
@@ -122,11 +122,9 @@ pub const Account = struct {
     pub fn new_not_existing(allocator: std.mem.Allocator) !Self {
         return .{
             .info = try AccountInfo.init(),
-            .storage = std.HashMap(
+            .storage = std.AutoHashMap(
                 u256,
                 StorageSlot,
-                utils.BigIntContext(u256),
-                std.hash_map.default_max_load_percentage,
             ).init(allocator),
             .status = .{
                 .Loaded = false,
@@ -283,12 +281,7 @@ test "State - StorageSlot : get_present_value" {
 }
 
 test "Account: self destruct functions" {
-    var map = std.HashMap(
-        u256,
-        StorageSlot,
-        utils.BigIntContext(u256),
-        std.hash_map.default_max_load_percentage,
-    ).init(std.testing.allocator);
+    var map = std.AutoHashMap(u256, StorageSlot).init(std.testing.allocator);
 
     defer map.deinit();
 
@@ -310,12 +303,7 @@ test "Account: self destruct functions" {
 }
 
 test "Account: touched functions" {
-    var map = std.HashMap(
-        u256,
-        StorageSlot,
-        utils.BigIntContext(u256),
-        std.hash_map.default_max_load_percentage,
-    ).init(std.testing.allocator);
+    var map = std.AutoHashMap(u256, StorageSlot).init(std.testing.allocator);
     defer map.deinit();
 
     try map.put(0, .{ .original_value = 0, .present_value = 0 });
@@ -336,7 +324,7 @@ test "Account: touched functions" {
 }
 
 test "Account: created functions" {
-    var map = std.HashMap(u256, StorageSlot, utils.BigIntContext(u256), std.hash_map.default_max_load_percentage).init(std.testing.allocator);
+    var map = std.AutoHashMap(u256, StorageSlot).init(std.testing.allocator);
     defer map.deinit();
 
     try map.put(0, .{ .original_value = 0, .present_value = 0 });
@@ -357,12 +345,7 @@ test "Account: created functions" {
 }
 
 test "Account: is_empty function" {
-    var map = std.HashMap(
-        u256,
-        StorageSlot,
-        utils.BigIntContext(u256),
-        std.hash_map.default_max_load_percentage,
-    ).init(std.testing.allocator);
+    var map = std.AutoHashMap(u256, StorageSlot).init(std.testing.allocator);
     defer map.deinit();
 
     try map.put(0, StorageSlot{ .original_value = 0, .present_value = 0 });

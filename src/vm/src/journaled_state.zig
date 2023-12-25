@@ -9,6 +9,8 @@ const Account = @import("../../primitives/primitives.zig").Account;
 const Bytecode = @import("../../primitives/primitives.zig").Bytecode;
 const Constants = @import("../../primitives/primitives.zig").Constants;
 const Utils = @import("../../primitives/primitives.zig").Utils;
+const Database = @import("./db/db.zig").Database;
+const StorageSlot = @import("../../primitives/primitives.zig").StorageSlot;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
@@ -292,6 +294,49 @@ pub const JournaledState = struct {
     /// May return an error if appending to the log fails.
     pub fn addLog(self: *Self, lg: Log) !void {
         try self.logs.append(lg);
+    }
+
+    pub fn loadAccount(
+        self: *Self,
+        allocator: Allocator,
+        address: [20]u8,
+        db: Database,
+    ) !std.meta.Tuple(&.{ Account, bool }) {
+        return switch (self.state.getEntry(address)) {
+            null => {
+                const account = if (db.basic(address)) |a|
+                    Account{
+                        .info = a,
+                        .storage = std.AutoHashMap(u256, StorageSlot).init(allocator),
+                        .status = .{
+                            .Loaded = false,
+                            .Created = false,
+                            .SelfDestructed = false,
+                            .Touched = false,
+                            .LoadedAsNotExisting = true,
+                        },
+                    }
+                else
+                    Account.new_not_existing(allocator);
+
+                const journal_len = self.journal.items.len;
+                const last_journal = if (journal_len == 0) return error.JournalIsEmpty else &self.journal.items[journal_len - 1];
+
+                try last_journal.append(allocator, .{ .AccountLoaded = .{ .address = address } });
+
+                var is_cold = false;
+
+                for (self.precompile_addresses) |precompile_address| {
+                    if (std.mem.eql(u8, &precompile_address, &address)) {
+                        is_cold = true;
+                        break;
+                    }
+                }
+                try self.state.put(address, account);
+                return .{ account, is_cold };
+            },
+            else => |e| .{ e.value_ptr.*, false },
+        };
     }
 
     /// Frees the resources owned by this instance.
@@ -854,3 +899,5 @@ test "JournaledState: checkpointCommit should decrease the depth of the journal 
     // Ensure that the depth has been decremented by 1.
     try expect(journal_state.depth == 133);
 }
+
+test "JournaledState: toto" {}
