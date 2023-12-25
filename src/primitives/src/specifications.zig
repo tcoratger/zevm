@@ -44,7 +44,7 @@ pub const SpecId = enum(u8) {
         return @intFromEnum(our) >= @intFromEnum(other);
     }
 
-    pub fn from_u8(spec_id: u8) Self {
+    pub fn fromU8(spec_id: u8) Self {
         return @as(Self, @enumFromInt(spec_id));
     }
 };
@@ -54,24 +54,24 @@ test "SpecId: enabled function" {
     try expect(SpecId.enabled(.HOMESTEAD, .DAO_FORK) == false);
 }
 
-test "SpecId: from_u8 function" {
-    try expect(SpecId.from_u8(0) == .FRONTIER);
-    try expect(SpecId.from_u8(1) == .FRONTIER_THAWING);
-    try expect(SpecId.from_u8(2) == .HOMESTEAD);
-    try expect(SpecId.from_u8(3) == .DAO_FORK);
-    try expect(SpecId.from_u8(4) == .TANGERINE);
-    try expect(SpecId.from_u8(5) == .SPURIOUS_DRAGON);
-    try expect(SpecId.from_u8(6) == .BYZANTIUM);
-    try expect(SpecId.from_u8(7) == .CONSTANTINOPLE);
-    try expect(SpecId.from_u8(8) == .PETERSBURG);
-    try expect(SpecId.from_u8(9) == .ISTANBUL);
-    try expect(SpecId.from_u8(10) == .MUIR_GLACIER);
-    try expect(SpecId.from_u8(11) == .BERLIN);
-    try expect(SpecId.from_u8(12) == .LONDON);
-    try expect(SpecId.from_u8(13) == .ARROW_GLACIER);
-    try expect(SpecId.from_u8(14) == .GRAY_GLACIER);
-    try expect(SpecId.from_u8(15) == .MERGE);
-    try expect(SpecId.from_u8(16) == .SHANGHAI);
-    try expect(SpecId.from_u8(17) == .CANCUN);
-    try expect(SpecId.from_u8(18) == .LATEST);
+test "SpecId: fromU8 function" {
+    try expect(SpecId.fromU8(0) == .FRONTIER);
+    try expect(SpecId.fromU8(1) == .FRONTIER_THAWING);
+    try expect(SpecId.fromU8(2) == .HOMESTEAD);
+    try expect(SpecId.fromU8(3) == .DAO_FORK);
+    try expect(SpecId.fromU8(4) == .TANGERINE);
+    try expect(SpecId.fromU8(5) == .SPURIOUS_DRAGON);
+    try expect(SpecId.fromU8(6) == .BYZANTIUM);
+    try expect(SpecId.fromU8(7) == .CONSTANTINOPLE);
+    try expect(SpecId.fromU8(8) == .PETERSBURG);
+    try expect(SpecId.fromU8(9) == .ISTANBUL);
+    try expect(SpecId.fromU8(10) == .MUIR_GLACIER);
+    try expect(SpecId.fromU8(11) == .BERLIN);
+    try expect(SpecId.fromU8(12) == .LONDON);
+    try expect(SpecId.fromU8(13) == .ARROW_GLACIER);
+    try expect(SpecId.fromU8(14) == .GRAY_GLACIER);
+    try expect(SpecId.fromU8(15) == .MERGE);
+    try expect(SpecId.fromU8(16) == .SHANGHAI);
+    try expect(SpecId.fromU8(17) == .CANCUN);
+    try expect(SpecId.fromU8(18) == .LATEST);
 }

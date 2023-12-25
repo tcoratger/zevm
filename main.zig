@@ -31,7 +31,7 @@ pub fn main() void {
 
     // std.debug.print("EMPTY_UNCLE_HASH = {any}\n", .{tutu.ExecutionResult.logs(u)});
 
-    // std.debug.print("EMPTY_UNCLE_HASH = {any}\n", .{tutu.ExecutionResult.is_success(t)});
+    // std.debug.print("EMPTY_UNCLE_HASH = {any}\n", .{tutu.ExecutionResult.isSuccess(t)});
 
     // const maybeString: util.Option.T = util.Option.some("Hello, Zig!");
     // _ = maybeString;

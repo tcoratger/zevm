@@ -18,7 +18,7 @@ pub const Gas = struct {
     refunded: i64,
 
     /// Creates a new `Gas` struct with the given gas limit.
-    pub fn new(lim: u64) Self {
+    pub fn init(lim: u64) Self {
         return .{
             .limit = lim,
             .used = 0,
@@ -104,7 +104,7 @@ pub const Gas = struct {
 };
 
 test "Gas: new" {
-    try expectEqual(Gas.new(12), Gas{
+    try expectEqual(Gas.init(12), Gas{
         .limit = 12,
         .used = 0,
         .memory = 0,
@@ -114,27 +114,27 @@ test "Gas: new" {
 }
 
 test "Gas: limit" {
-    var g = Gas.new(12);
+    var g = Gas.init(12);
     try expectEqual(Gas.limit(&g), 12);
 }
 
 test "Gas: memory" {
-    var g = Gas.new(12);
+    var g = Gas.init(12);
     try expectEqual(Gas.memory(&g), 0);
 }
 
 test "Gas: refunded" {
-    var g = Gas.new(12);
+    var g = Gas.init(12);
     try expectEqual(Gas.refunded(&g), 0);
 }
 
 test "Gas: spend" {
-    var g = Gas.new(12);
+    var g = Gas.init(12);
     try expectEqual(Gas.spend(&g), 0);
 }
 
 test "Gas: remaining" {
-    var g = Gas.new(12);
+    var g = Gas.init(12);
     try expectEqual(Gas.remaining(&g), 12);
 }
 

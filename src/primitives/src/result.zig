@@ -31,7 +31,7 @@ pub const ExecutionResult = union(ExecutionResultEnum) {
     /// Returns if transaction execution is successful.
     /// 1 indicates success, 0 indicates revert.
     /// https://eips.ethereum.org/EIPS/eip-658
-    pub fn is_success(execution_result: Self) bool {
+    pub fn isSuccess(execution_result: Self) bool {
         return execution_result == .Success;
     }
 

@@ -16,13 +16,13 @@ pub const B256 = struct {
     }
 
     /// Returns true if no bits are set.
-    pub fn is_zero(self: Self) bool {
+    pub fn isZero(self: Self) bool {
         return self.eql(Self.zero());
     }
 
     pub fn serialize(self: Self) ![]const u8 {
         var slice = [_]u8{0} ** (2 + 2 * 32);
-        return Serialize.serialize_raw(&slice, &self.bytes);
+        return Serialize.serializeRaw(&slice, &self.bytes);
     }
 
     pub fn eql(self: Self, other: Self) bool {
@@ -49,7 +49,7 @@ pub const B256 = struct {
     }
 
     /// Extracts a byte slice containing the entire fixed hash.
-    pub fn as_bytes(self: *Self) *[32]u8 {
+    pub fn asBytes(self: *Self) *[32]u8 {
         return &self.bytes;
     }
 
@@ -60,7 +60,7 @@ pub const B256 = struct {
     ///
     /// ## Panic
     /// If the length of src and the number of bytes in Self do not match.
-    pub fn from_slice(src: []const u8) Self {
+    pub fn fromSlice(src: []const u8) Self {
         std.debug.assert(src.len == 32);
         return .{ .bytes = src.ptr[0..32].* };
     }
@@ -79,7 +79,7 @@ pub const B160 = struct {
     }
 
     /// Returns true if no bits are set.
-    pub fn is_zero(self: Self) bool {
+    pub fn isZero(self: Self) bool {
         return self.eql(Self.zero());
     }
 
@@ -97,7 +97,7 @@ pub const B160 = struct {
     }
 
     /// Extracts a byte slice containing the entire fixed hash.
-    pub fn as_bytes(self: *Self) *[20]u8 {
+    pub fn asBytes(self: *Self) *[20]u8 {
         return &self.bytes;
     }
 
@@ -108,7 +108,7 @@ pub const B160 = struct {
     ///
     /// ## Panic
     /// If the length of src and the number of bytes in Self do not match.
-    pub fn from_slice(src: []const u8) Self {
+    pub fn fromSlice(src: []const u8) Self {
         std.debug.assert(src.len == 20);
         return .{ .bytes = src.ptr[0..20].* };
     }
@@ -117,7 +117,7 @@ pub const B160 = struct {
 pub const Serialize = struct {
     const CHARS = "0123456789abcdef";
 
-    pub fn to_hex_raw(v: []u8, bytes: []const u8, skip_leading_zero: bool) ![]const u8 {
+    pub fn toHexRaw(v: []u8, bytes: []const u8, skip_leading_zero: bool) ![]const u8 {
         std.debug.assert(v.len > 2 + bytes.len * 2);
 
         v[0] = '0';
@@ -144,28 +144,28 @@ pub const Serialize = struct {
     }
 
     /// Serializes a slice of bytes.
-    pub fn serialize_raw(slice: []u8, bytes: []const u8) ![]const u8 {
+    pub fn serializeRaw(slice: []u8, bytes: []const u8) ![]const u8 {
         if (bytes.len == 0) {
             return "0x";
         } else {
-            return Serialize.to_hex_raw(slice, bytes, false);
+            return Serialize.toHexRaw(slice, bytes, false);
         }
     }
 };
 
 test "B256: zero function" {
     try expect(B256.zero().eql(B256{ .bytes = [_]u8{0} ** 32 }));
-    try expect(B256.zero().is_zero());
+    try expect(B256.zero().isZero());
 }
 
-test "B256: from_slice function" {
+test "B256: fromSlice function" {
     const src = [_]u8{0} ** (32);
-    try expect(B256.from_slice(&src).is_zero());
+    try expect(B256.fromSlice(&src).isZero());
 }
 
-test "B256: as_bytes function" {
+test "B256: asBytes function" {
     var b = B256.zero();
-    try expect(std.mem.eql(u8, b.as_bytes(), &[_]u8{0} ** 32));
+    try expect(std.mem.eql(u8, b.asBytes(), &[_]u8{0} ** 32));
 }
 
 test "B256: from function" {
@@ -178,19 +178,19 @@ test "B256: from function" {
     );
 }
 
-test "B160: as_bytes function" {
+test "B160: asBytes function" {
     var b = B160.zero();
-    try expect(std.mem.eql(u8, b.as_bytes(), &[_]u8{0} ** 20));
+    try expect(std.mem.eql(u8, b.asBytes(), &[_]u8{0} ** 20));
 }
 
-test "B160: from_slice function" {
+test "B160: fromSlice function" {
     const src = [_]u8{0} ** (20);
-    try expect(B160.from_slice(&src).is_zero());
+    try expect(B160.fromSlice(&src).isZero());
 }
 
 test "B160: zero function" {
     try expect(B160.zero().eql(B160{ .bytes = [_]u8{0} ** 20 }));
-    try expect(B160.zero().is_zero());
+    try expect(B160.zero().isZero());
 }
 
 test "B160: from u64 function" {

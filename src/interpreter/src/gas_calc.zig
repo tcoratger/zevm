@@ -2,7 +2,7 @@ const std = @import("std");
 const specifications = @import("../../primitives/primitives.zig").SpecId;
 const constants = @import("./gas_constants.zig");
 
-pub fn sstore_refund(
+pub fn sstoreRefund(
     comptime spec: specifications,
     original: u256,
     current: u256,
@@ -65,7 +65,7 @@ pub fn sstore_refund(
     }
 }
 
-pub fn create2_cost(len: usize) ?u64 {
+pub fn create2Cost(len: usize) ?u64 {
     const base = constants.Constants.CREATE;
     const len_u64 = @as(u64, len);
     const sha_addup_base = @as(u64, (len_u64 / 32)) + @as(u64, @mod(len, 32));

@@ -62,7 +62,7 @@ pub const JournaledState = struct {
     /// # Note
     ///
     /// Precompile addresses should be sorted.
-    pub fn new(allocator: Allocator, spec: SpecId, precompile_addresses: std.ArrayList([20]u8)) Self {
+    pub fn init(allocator: Allocator, spec: SpecId, precompile_addresses: std.ArrayList([20]u8)) Self {
         return .{
             .state = std.AutoHashMap([20]u8, Account).init(allocator),
             .transient_storage = std.AutoHashMap(
@@ -112,12 +112,12 @@ pub const JournaledState = struct {
         address: [20]u8,
         account: *Account,
     ) !void {
-        if (!account.is_touched()) {
+        if (!account.isTouched()) {
             try journal.append(
                 allocator,
                 .{ .AccountTouched = .{ .address = address } },
             );
-            account.mark_touch();
+            account.markTouch();
         }
     }
 
@@ -317,7 +317,7 @@ pub const JournaledState = struct {
                         },
                     }
                 else
-                    Account.new_not_existing(allocator);
+                    Account.newNotExisting(allocator);
 
                 const journal_len = self.journal.items.len;
                 const last_journal = if (journal_len == 0) return error.JournalIsEmpty else &self.journal.items[journal_len - 1];
@@ -414,7 +414,7 @@ pub const JournalEntry = union(enum) {
 
 test "JournaledState: touchAccount an account not already touched" {
     // Create a new account that does not exist using the testing allocator.
-    var account = try Account.new_not_existing(std.testing.allocator);
+    var account = try Account.newNotExisting(std.testing.allocator);
 
     // Create a 20-byte address filled with zeros.
     const address = [_]u8{0x00} ** 20;
@@ -446,10 +446,10 @@ test "JournaledState: touchAccount an account not already touched" {
 
 test "JournaledState: touchAccount an account already touched" {
     // Create a new account that does not exist using the testing allocator.
-    var account = try Account.new_not_existing(std.testing.allocator);
+    var account = try Account.newNotExisting(std.testing.allocator);
 
     // Mark the account as touched to simulate an already touched account.
-    account.mark_touch();
+    account.markTouch();
 
     // Create a 20-byte address filled with zeros.
     const address = [_]u8{0x00} ** 20;
@@ -486,7 +486,7 @@ test "JournaledState: touch should mark the account as touched" {
     defer precompile_addresses.deinit();
 
     // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
-    var journal_state = JournaledState.new(
+    var journal_state = JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         precompile_addresses,
@@ -504,7 +504,7 @@ test "JournaledState: touch should mark the account as touched" {
     try journal_state.journal.append(journal_entry);
 
     // Create a new account for the address in the state and ensure it's initially untouched.
-    try journal_state.state.put(address, try Account.new_not_existing(std.testing.allocator));
+    try journal_state.state.put(address, try Account.newNotExisting(std.testing.allocator));
     try expect(!journal_state.state.get(address).?.status.Touched);
 
     // Invoke the 'touch' function on the journal state for the provided address.
@@ -532,7 +532,7 @@ test "JournaledState: touch should return an error if the journal is empty" {
     defer precompile_addresses.deinit();
 
     // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
-    var journal_state = JournaledState.new(
+    var journal_state = JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         precompile_addresses,
@@ -540,7 +540,7 @@ test "JournaledState: touch should return an error if the journal is empty" {
     defer journal_state.deinit();
 
     // Create a new account for the address in the state and ensure it's initially untouched.
-    try journal_state.state.put(address, try Account.new_not_existing(std.testing.allocator));
+    try journal_state.state.put(address, try Account.newNotExisting(std.testing.allocator));
     try expect(!journal_state.state.get(address).?.status.Touched);
 
     // Assert that calling 'touch' on an empty journal returns an expected error.
@@ -555,7 +555,7 @@ test "JournaledState: finalize should clean up and return modified state" {
     const address = [_]u8{0x00} ** 20;
 
     // Create a new JournaledState instance for testing with specific configurations.
-    var journal_state = JournaledState.new(
+    var journal_state = JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         std.ArrayList([20]u8).init(std.testing.allocator),
@@ -581,7 +581,7 @@ test "JournaledState: finalize should clean up and return modified state" {
     // Put a new account into the state with the given address.
     try journal_state.state.put(
         address,
-        try Account.new_not_existing(std.testing.allocator),
+        try Account.newNotExisting(std.testing.allocator),
     );
 
     // Append an entry to the log for the given address.
@@ -608,7 +608,7 @@ test "JournaledState: finalize should clean up and return modified state" {
     // Assertions to validate the modified state and logs after finalization.
     try expect(result[0].count() == 1);
     try expectEqual(
-        @as(?Account, try Account.new_not_existing(std.testing.allocator)),
+        @as(?Account, try Account.newNotExisting(std.testing.allocator)),
         result[0].get(address).?,
     );
     try expectEqualSlices(
@@ -629,7 +629,7 @@ test "JournaledState: account should return the account corresponding to the giv
     const address = [_]u8{0x00} ** 20;
 
     // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
-    var journal_state = JournaledState.new(
+    var journal_state = JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         std.ArrayList([20]u8).init(std.testing.allocator),
@@ -637,7 +637,7 @@ test "JournaledState: account should return the account corresponding to the giv
     defer journal_state.deinit(); // Ensures cleanup after the test runs
 
     // Create a new account instance (not existing initially) using the testing allocator.
-    const account = try Account.new_not_existing(std.testing.allocator);
+    const account = try Account.newNotExisting(std.testing.allocator);
 
     // Expect an error when attempting to get an account that's expected to be loaded but isn't found.
     try expectError(
@@ -664,7 +664,7 @@ test "JournaledState: setCode should set the code properly at the provided addre
     defer precompile_addresses.deinit();
 
     // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
-    var journal_state = JournaledState.new(
+    var journal_state = JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         precompile_addresses,
@@ -682,7 +682,7 @@ test "JournaledState: setCode should set the code properly at the provided addre
     try journal_state.journal.append(journal_entry);
 
     // Create a new account for the address in the state and ensure it's initially untouched.
-    try journal_state.state.put(address, try Account.new_not_existing(std.testing.allocator));
+    try journal_state.state.put(address, try Account.newNotExisting(std.testing.allocator));
 
     // Ensure that the newly created account is initially untouched.
     try expect(!journal_state.state.get(address).?.status.Touched);
@@ -732,7 +732,7 @@ test "JournaledState: incrementNonce should increment the nonce" {
     defer precompile_addresses.deinit();
 
     // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
-    var journal_state = JournaledState.new(
+    var journal_state = JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         precompile_addresses,
@@ -750,7 +750,7 @@ test "JournaledState: incrementNonce should increment the nonce" {
     try journal_state.journal.append(journal_entry);
 
     // Create a new account for the address in the state and ensure it's initially untouched.
-    try journal_state.state.put(address, try Account.new_not_existing(std.testing.allocator));
+    try journal_state.state.put(address, try Account.newNotExisting(std.testing.allocator));
 
     // Ensure that the newly created account is initially untouched.
     try expect(!journal_state.state.get(address).?.status.Touched);
@@ -790,7 +790,7 @@ test "JournaledState: tload should return the transient storage tied to the acco
     defer precompile_addresses.deinit();
 
     // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
-    var journal_state = JournaledState.new(
+    var journal_state = JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         precompile_addresses,
@@ -812,7 +812,7 @@ test "JournaledState: addLog should push a new log to the journaled state" {
     const address = [_]u8{0x00} ** 20;
 
     // Create a new JournaledState instance for testing with specific configurations.
-    var journal_state = JournaledState.new(
+    var journal_state = JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         std.ArrayList([20]u8).init(std.testing.allocator),
@@ -841,7 +841,7 @@ test "JournaledState: addCheckpoint should add a checkpoint in the journaled sta
     const address = [_]u8{0x00} ** 20;
 
     // Create a new JournaledState instance for testing with specific configurations.
-    var journal_state = JournaledState.new(
+    var journal_state = JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         std.ArrayList([20]u8).init(std.testing.allocator),
@@ -883,7 +883,7 @@ test "JournaledState: addCheckpoint should add a checkpoint in the journaled sta
 
 test "JournaledState: checkpointCommit should decrease the depth of the journal by 1" {
     // Create a new JournaledState instance for testing with specific configurations.
-    var journal_state = JournaledState.new(
+    var journal_state = JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         std.ArrayList([20]u8).init(std.testing.allocator),

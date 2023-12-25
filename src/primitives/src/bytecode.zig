@@ -23,11 +23,11 @@ pub const Bytecode = struct {
     state: BytecodeState,
 
     pub fn default() Self {
-        return Self.new();
+        return Self.init();
     }
 
     /// Creates a new `Bytecode` with exactly one STOP opcode.
-    pub fn new() Self {
+    pub fn init() Self {
         var buf: [1]u8 = .{0};
         return .{
             .bytecode = &buf,
@@ -37,7 +37,7 @@ pub const Bytecode = struct {
 
     /// Calculate hash of the bytecode.
     pub fn hash_slow(self: Self) bits.B256 {
-        if (self.is_empty()) {
+        if (self.isEmpty()) {
             return constants.Constants.KECCAK_EMPTY;
         } else {
             return utils.keccak256(self.original_bytes());
@@ -81,7 +81,7 @@ pub const Bytecode = struct {
     }
 
     /// Returns whether the bytecode is empty.
-    pub fn is_empty(self: Self) bool {
+    pub fn isEmpty(self: Self) bool {
         return switch (self.state) {
             .Raw => self.bytecode.len == 0,
             .Checked => |*item| item.*.len == 0,
@@ -187,11 +187,11 @@ test "Bytecode: state function" {
     );
 }
 
-test "Bytecode: is_empty function" {
+test "Bytecode: isEmpty function" {
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
-    try expect(!Bytecode.is_empty(Bytecode.new_checked(buf[0..], 3)));
-    try expect(Bytecode.is_empty(Bytecode.new_raw(buf[0..0])));
-    try expect(!Bytecode.is_empty(Bytecode.new_raw(buf[0..])));
+    try expect(!Bytecode.isEmpty(Bytecode.new_checked(buf[0..], 3)));
+    try expect(Bytecode.isEmpty(Bytecode.new_raw(buf[0..0])));
+    try expect(!Bytecode.isEmpty(Bytecode.new_raw(buf[0..])));
 }
 
 test "Bytecode: len function" {

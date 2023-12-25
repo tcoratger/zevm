@@ -38,15 +38,15 @@ pub const StorageSlot = struct {
         self.present_value = new_original_value;
     }
 
-    pub fn is_changed(self: *Self) bool {
+    pub fn isChanged(self: *Self) bool {
         return self.original_value == self.present_value;
     }
 
-    pub fn get_original_value(self: Self) u256 {
+    pub fn getOriginalValue(self: Self) u256 {
         return self.original_value;
     }
 
-    pub fn get_present_value(self: Self) u256 {
+    pub fn getPresentValue(self: Self) u256 {
         return self.present_value;
     }
 };
@@ -62,66 +62,66 @@ pub const Account = struct {
     status: AccountStatus,
 
     /// Mark account as self destructed.
-    pub fn mark_selfdestruct(self: *Self) void {
+    pub fn markSelfdestruct(self: *Self) void {
         self.status.SelfDestructed = true;
     }
 
     /// Unmark account as self destructed.
-    pub fn unmark_selfdestruct(self: *Self) void {
+    pub fn unmarkSelfdestruct(self: *Self) void {
         self.status.SelfDestructed = false;
     }
 
     /// Is account marked for self destruct.
-    pub fn is_selfdestructed(self: *Self) bool {
+    pub fn isSelfdestructed(self: *Self) bool {
         return self.status.SelfDestructed;
     }
 
     /// Mark account as touched
-    pub fn mark_touch(self: *Self) void {
+    pub fn markTouch(self: *Self) void {
         self.status.Touched = true;
     }
 
     /// Unmark the touch flag.
-    pub fn unmark_touch(self: *Self) void {
+    pub fn unmarkTouch(self: *Self) void {
         self.status.Touched = false;
     }
 
     /// If account status is marked as touched.
-    pub fn is_touched(self: *Self) bool {
+    pub fn isTouched(self: *Self) bool {
         return self.status.Touched;
     }
 
     /// Mark account as newly created.
-    pub fn mark_created(self: *Self) void {
+    pub fn markCreated(self: *Self) void {
         self.status.Created = true;
     }
 
     /// Unmark created flag.
-    pub fn unmark_created(self: *Self) void {
+    pub fn unmarkCreated(self: *Self) void {
         self.status.Created = false;
     }
 
     /// If account status is marked as created.
-    pub fn is_created(self: *Self) bool {
+    pub fn isCreated(self: *Self) bool {
         return self.status.Created;
     }
 
     /// Is account loaded as not existing from database
     /// This is needed for pre spurious dragon hardforks where
     /// existing and empty were two separate states.
-    pub fn is_loaded_as_not_existing(self: *Self) bool {
+    pub fn isLoadedAsNotExisting(self: *Self) bool {
         return self.status.LoadedAsNotExisting;
     }
 
     /// Is account empty, check if nonce and balance are zero and code is empty.
-    pub fn is_empty(self: *Self) bool {
-        return self.info.is_empty();
+    pub fn isEmpty(self: *Self) bool {
+        return self.info.isEmpty();
     }
 
     /// Create new account and mark it as non existing.
-    pub fn new_not_existing(allocator: std.mem.Allocator) !Self {
+    pub fn newNotExisting(allocator: std.mem.Allocator) !Self {
         return .{
-            .info = try AccountInfo.init(),
+            .info = try AccountInfo.initDefault(),
             .storage = std.AutoHashMap(
                 u256,
                 StorageSlot,
@@ -184,12 +184,12 @@ pub const AccountInfo = struct {
     /// inside of revm.
     code: ?bytecode.Bytecode,
 
-    pub fn init() !Self {
+    pub fn initDefault() !Self {
         return .{
             .balance = 0,
             .nonce = 0,
             .code_hash = constants.Constants.KECCAK_EMPTY,
-            .code = bytecode.Bytecode.new(),
+            .code = bytecode.Bytecode.init(),
         };
     }
 
@@ -197,7 +197,7 @@ pub const AccountInfo = struct {
         return self.balance == other.balance and self.nonce == other.nonce and self.code_hash.eql(other.code_hash);
     }
 
-    pub fn new(
+    pub fn init(
         balance: u256,
         nonce: u64,
         code_hash: bits.B256,
@@ -211,33 +211,33 @@ pub const AccountInfo = struct {
         };
     }
 
-    pub fn is_empty(self: Self) bool {
+    pub fn isEmpty(self: Self) bool {
         return self.balance == 0 and self.nonce == 0 and (self.code_hash.eql(constants.Constants.KECCAK_EMPTY) or self.code_hash.eql(bits.B256.zero()));
     }
 
     pub fn exists(self: Self) bool {
-        return !self.is_empty();
+        return !self.isEmpty();
     }
 
     /// Return bytecode hash associated with this account.
     /// If account does not have code, it return's `KECCAK_EMPTY` hash.
-    pub fn get_code_hash(self: *Self) bits.B256 {
+    pub fn getCodeHash(self: *Self) bits.B256 {
         return self.code_hash;
     }
 
     /// Take bytecode from account. Code will be set to None.
-    pub fn take_bytecode(self: *Self) ?bytecode.Bytecode {
+    pub fn takeBytecode(self: *Self) ?bytecode.Bytecode {
         const y = self.code;
         self.code = null;
         return y;
     }
 
-    pub fn from_balance(balance: u256) Self {
+    pub fn fromBalance(balance: u256) Self {
         return .{
             .balance = balance,
             .nonce = 0,
             .code_hash = constants.Constants.KECCAK_EMPTY,
-            .code = bytecode.Bytecode.new(),
+            .code = bytecode.Bytecode.init(),
         };
     }
 };
@@ -257,27 +257,27 @@ test "State - StorageSlot : set" {
     try expectEqual(@as(u256, 2), storage_slot.present_value);
 }
 
-test "State - StorageSlot : is_changed" {
+test "State - StorageSlot : isChanged" {
     var storage_slot = StorageSlot.init(0);
     storage_slot.set(2);
 
-    try expect(storage_slot.is_changed());
+    try expect(storage_slot.isChanged());
 }
 
-test "State - StorageSlot : get_original_value" {
+test "State - StorageSlot : getOriginalValue" {
     var storage_slot = StorageSlot.init(0);
-    try expectEqual(@as(u256, 0), storage_slot.get_original_value());
+    try expectEqual(@as(u256, 0), storage_slot.getOriginalValue());
 
     storage_slot.set(2);
-    try expectEqual(@as(u256, 2), storage_slot.get_original_value());
+    try expectEqual(@as(u256, 2), storage_slot.getOriginalValue());
 }
 
-test "State - StorageSlot : get_present_value" {
+test "State - StorageSlot : getPresentValue" {
     var storage_slot = StorageSlot.init(0);
-    try expectEqual(@as(u256, 0), storage_slot.get_present_value());
+    try expectEqual(@as(u256, 0), storage_slot.getPresentValue());
 
     storage_slot.set(2);
-    try expectEqual(@as(u256, 2), storage_slot.get_present_value());
+    try expectEqual(@as(u256, 2), storage_slot.getPresentValue());
 }
 
 test "Account: self destruct functions" {
@@ -287,19 +287,19 @@ test "Account: self destruct functions" {
 
     try map.put(0, .{ .original_value = 0, .present_value = 0 });
 
-    const default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.initDefault();
 
     var account = Account{
         .info = default_account,
         .storage = map,
         .status = AccountStatus.init(),
     };
-    account.mark_selfdestruct();
+    account.markSelfdestruct();
     try expect(account.status.SelfDestructed);
-    try expect(account.is_selfdestructed());
-    account.unmark_selfdestruct();
+    try expect(account.isSelfdestructed());
+    account.unmarkSelfdestruct();
     try expect(!account.status.SelfDestructed);
-    try expect(!account.is_selfdestructed());
+    try expect(!account.isSelfdestructed());
 }
 
 test "Account: touched functions" {
@@ -308,19 +308,19 @@ test "Account: touched functions" {
 
     try map.put(0, .{ .original_value = 0, .present_value = 0 });
 
-    const default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.initDefault();
 
     var account = Account{
         .info = default_account,
         .storage = map,
         .status = AccountStatus.init(),
     };
-    account.mark_touch();
+    account.markTouch();
     try expect(account.status.Touched);
-    try expect(account.is_touched());
-    account.unmark_touch();
+    try expect(account.isTouched());
+    account.unmarkTouch();
     try expect(!account.status.Touched);
-    try expect(!account.is_touched());
+    try expect(!account.isTouched());
 }
 
 test "Account: created functions" {
@@ -329,39 +329,39 @@ test "Account: created functions" {
 
     try map.put(0, .{ .original_value = 0, .present_value = 0 });
 
-    const default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.initDefault();
 
     var account = Account{
         .info = default_account,
         .storage = map,
         .status = AccountStatus.init(),
     };
-    account.mark_created();
+    account.markCreated();
     try expect(account.status.Created);
-    try expect(account.is_created());
-    account.unmark_created();
+    try expect(account.isCreated());
+    account.unmarkCreated();
     try expect(!account.status.Created);
-    try expect(!account.is_created());
+    try expect(!account.isCreated());
 }
 
-test "Account: is_empty function" {
+test "Account: isEmpty function" {
     var map = std.AutoHashMap(u256, StorageSlot).init(std.testing.allocator);
     defer map.deinit();
 
     try map.put(0, StorageSlot{ .original_value = 0, .present_value = 0 });
 
-    const default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.initDefault();
 
     var account = Account{
         .info = default_account,
         .storage = map,
         .status = AccountStatus.init(),
     };
-    try expect(account.is_empty());
+    try expect(account.isEmpty());
 }
 
-test "Account: new_not_existing function" {
-    var not_existing = try Account.new_not_existing(std.testing.allocator);
+test "Account: newNotExisting function" {
+    var not_existing = try Account.newNotExisting(std.testing.allocator);
     defer not_existing.deinit();
 
     try expect(not_existing.status.LoadedAsNotExisting);
@@ -374,7 +374,7 @@ test "AccountStatus: default function" {
 test "AccountInfo: default function" {
     var buf: [1]u8 = .{0};
 
-    const default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.initDefault();
 
     try expectEqual(@as(u256, 0), default_account.balance);
     try expectEqual(default_account.nonce, 0);
@@ -384,7 +384,7 @@ test "AccountInfo: default function" {
 }
 
 test "AccountInfo: eq function" {
-    const default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.initDefault();
 
     try expect(AccountInfo.eq(default_account, default_account));
 }
@@ -392,11 +392,11 @@ test "AccountInfo: eq function" {
 test "AccountInfo: new function" {
     var buf: [1]u8 = .{0};
 
-    const accountInfo = AccountInfo.new(
+    const accountInfo = AccountInfo.init(
         0,
         0,
         constants.Constants.KECCAK_EMPTY,
-        bytecode.Bytecode.new(),
+        bytecode.Bytecode.init(),
     );
     try expectEqual(@as(u256, 0), accountInfo.balance);
     try expectEqual(@as(u64, 0), accountInfo.nonce);
@@ -412,14 +412,14 @@ test "AccountInfo: new function" {
     );
 }
 
-test "AccountInfo: is_empty function" {
-    const default_account = try AccountInfo.init();
+test "AccountInfo: isEmpty function" {
+    const default_account = try AccountInfo.initDefault();
 
-    try expect(AccountInfo.is_empty(default_account));
+    try expect(AccountInfo.isEmpty(default_account));
 }
 
 test "AccountInfo: exists function" {
-    const default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.initDefault();
 
     try expectEqual(
         false,
@@ -428,41 +428,41 @@ test "AccountInfo: exists function" {
 }
 
 test "AccountInfo: code_hash function" {
-    var default_account = try AccountInfo.init();
+    var default_account = try AccountInfo.initDefault();
 
     try expectEqual(
         constants.Constants.KECCAK_EMPTY,
-        default_account.get_code_hash(),
+        default_account.getCodeHash(),
     );
 }
 
-test "AccountInfo: take_bytecode function" {
+test "AccountInfo: takeBytecode function" {
     var buf: [1]u8 = .{0};
-    const default_account = try AccountInfo.init();
+    const default_account = try AccountInfo.initDefault();
 
     var accountInfo = default_account;
-    const result_take_bytecode = accountInfo.take_bytecode();
+    const result_take_bytecode = accountInfo.takeBytecode();
     try std.testing.expectEqualSlices(u8, result_take_bytecode.?.bytecode, buf[0..]);
     try expectEqual(@as(usize, 0), result_take_bytecode.?.state.Analysed.len);
-    try expectEqual(@as(?bytecode.Bytecode, null), accountInfo.take_bytecode());
+    try expectEqual(@as(?bytecode.Bytecode, null), accountInfo.takeBytecode());
 }
 
-test "AccountInfo: from_balance function" {
+test "AccountInfo: fromBalance function" {
     var buf: [1]u8 = .{0};
 
-    try expectEqual(@as(u256, 100), AccountInfo.from_balance(100).balance);
-    try expectEqual(@as(u256, 0), AccountInfo.from_balance(100).nonce);
+    try expectEqual(@as(u256, 100), AccountInfo.fromBalance(100).balance);
+    try expectEqual(@as(u256, 0), AccountInfo.fromBalance(100).nonce);
     try expectEqual(
         constants.Constants.KECCAK_EMPTY,
-        AccountInfo.from_balance(100).code_hash,
+        AccountInfo.fromBalance(100).code_hash,
     );
     try std.testing.expectEqualSlices(
         u8,
         &buf,
-        AccountInfo.from_balance(100).code.?.bytecode,
+        AccountInfo.fromBalance(100).code.?.bytecode,
     );
     try expectEqual(
         @as(usize, 0),
-        AccountInfo.from_balance(100).code.?.state.Analysed.len,
+        AccountInfo.fromBalance(100).code.?.state.Analysed.len,
     );
 }

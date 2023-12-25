@@ -39,21 +39,21 @@ pub const CreateInputs = struct {
     gas_limit: u64,
 
     /// Returns the address that this create call will create.
-    pub fn create_address(
+    pub fn createAddress(
         self: *const Self,
         nonce: u64,
         allocator: std.mem.Allocator,
     ) ![20]u8 {
         const end: usize = 20;
         return switch (self.scheme) {
-            .Create => (try primitives.Utils.create_address(
-                primitives.B160.from_slice(self.caller[0..end]),
+            .Create => (try primitives.Utils.createAddress(
+                primitives.B160.fromSlice(self.caller[0..end]),
                 nonce,
                 allocator,
             )).bytes,
-            .Create2 => |*scheme| (try primitives.Utils.create2_address(
-                primitives.B160.from_slice(self.caller[0..]),
-                primitives.B256.from_slice(self.init_code),
+            .Create2 => |*scheme| (try primitives.Utils.create2Address(
+                primitives.B160.fromSlice(self.caller[0..]),
+                primitives.B256.fromSlice(self.init_code),
                 scheme.*.salt,
                 allocator,
             )).bytes,
@@ -71,13 +71,13 @@ pub const CreateInputs = struct {
     ) ![20]u8 {
         const end: usize = 20;
         return switch (self.scheme) {
-            .Create => (try primitives.Utils.create_address(
-                primitives.B160.from_slice(self.caller[0..end]),
+            .Create => (try primitives.Utils.createAddress(
+                primitives.B160.fromSlice(self.caller[0..end]),
                 nonce,
                 allocator,
             )).bytes,
-            .Create2 => |*scheme| (try primitives.Utils.create2_address(
-                primitives.B160.from_slice(self.caller[0..end]),
+            .Create2 => |*scheme| (try primitives.Utils.create2Address(
+                primitives.B160.fromSlice(self.caller[0..end]),
                 hash,
                 scheme.*.salt,
                 allocator,
@@ -142,7 +142,7 @@ pub const SelfDestructResult = struct {
     previously_destroyed: bool,
 };
 
-test "CreateInputs: create_address function with Create scheme" {
+test "CreateInputs: createAddress function with Create scheme" {
     var tmp = [3]u8{ 1, 2, 3 };
     const create_inputs: CreateInputs = .{
         .caller = B160.from(18_446_744_073_709_551_615).bytes,
@@ -154,11 +154,11 @@ test "CreateInputs: create_address function with Create scheme" {
 
     try expectEqual(
         [20]u8{ 4, 1, 133, 88, 123, 80, 98, 157, 3, 48, 181, 126, 60, 186, 109, 109, 136, 77, 127, 229 },
-        try create_inputs.create_address(2, std.testing.allocator),
+        try create_inputs.createAddress(2, std.testing.allocator),
     );
 }
 
-test "CreateInputs: create_address function with Create2 scheme" {
+test "CreateInputs: createAddress function with Create2 scheme" {
     var tmp = [32]u8{ 121, 72, 47, 147, 234, 13, 113, 78, 41, 51, 102, 50, 41, 34, 150, 42, 243, 142, 205, 217, 92, 255, 100, 131, 85, 193, 175, 75, 64, 167, 139, 50 };
     const create_inputs: CreateInputs = .{
         .caller = B160.from(18_446_744_073_709_551_615).bytes,
@@ -170,7 +170,7 @@ test "CreateInputs: create_address function with Create2 scheme" {
 
     try expectEqual(
         [20]u8{ 21, 108, 197, 97, 104, 190, 154, 181, 81, 131, 139, 5, 178, 141, 203, 240, 157, 66, 125, 96 },
-        try create_inputs.create_address(2, std.testing.allocator),
+        try create_inputs.createAddress(2, std.testing.allocator),
     );
 }
 

@@ -66,10 +66,10 @@ pub const BlobExcessGasAndPrice = struct {
     excess_blob_gasprice: u64,
 
     /// Takes excess blob gas and calculated blob fee with [`calc_blob_fee`]
-    pub fn new(excess_blob_gas: u64) Self {
+    pub fn init(excess_blob_gas: u64) Self {
         return .{
             .excess_blob_gas = excess_blob_gas,
-            .excess_blob_gasprice = utils.calc_blob_gasprice(excess_blob_gas),
+            .excess_blob_gasprice = utils.calcBlobGasprice(excess_blob_gas),
         };
     }
 
@@ -109,8 +109,8 @@ pub const BlockEnv = struct {
     /// [EIP-4399]: https://eips.ethereum.org/EIPS/eip-4399
     prev_randao: ?bits.B256,
     /// Excess blob gas and blob gasprice.
-    /// See also [`calc_excess_blob_gas`](crate::calc_excess_blob_gas)
-    /// and [`calc_blob_gasprice`](crate::calc_blob_gasprice).
+    /// See also [`calcExcessBlobGas`](crate::calcExcessBlobGas)
+    /// and [`calcBlobGasprice`](crate::calcBlobGasprice).
     ///
     /// Incorporated as part of the Cancun upgrade via [EIP-4844].
     ///
@@ -127,7 +127,7 @@ pub const BlockEnv = struct {
             .base_fee = 0,
             .difficulty = 0,
             .prev_randao = bits.B256.zero(),
-            .blob_excess_gas_and_price = BlobExcessGasAndPrice.new(0),
+            .blob_excess_gas_and_price = BlobExcessGasAndPrice.init(0),
         };
     }
 
@@ -140,7 +140,7 @@ pub const BlockEnv = struct {
         };
     }
 
-    /// See [EIP-4844] and [`crate::calc_blob_gasprice`].
+    /// See [EIP-4844] and [`crate::calcBlobGasprice`].
     ///
     /// Returns `None` if `Cancun` is not enabled. This is enforced in [`Env::validate_block_env`].
     ///
@@ -410,7 +410,7 @@ test "Block env: Init" {
         bits.B160{ .bytes = [20]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } },
         block_env.coinbase,
     );
-    try expect(block_env.prev_randao.?.is_zero());
+    try expect(block_env.prev_randao.?.isZero());
 }
 
 test "Block env: set_blob_excess_gas_and_price and get_blob_excess_gas" {
@@ -425,20 +425,20 @@ test "Block env: set_blob_excess_gas_and_price and get_blob_excess_gas" {
 
 test "Block env: new" {
     try expect(
-        BlobExcessGasAndPrice.new(0).eql(.{
+        BlobExcessGasAndPrice.init(0).eql(.{
             .excess_blob_gas = 0,
             .excess_blob_gasprice = 1,
         }),
     );
-    try expect(BlobExcessGasAndPrice.new(2314057).eql(.{
+    try expect(BlobExcessGasAndPrice.init(2314057).eql(.{
         .excess_blob_gas = 2314057,
         .excess_blob_gasprice = 1,
     }));
-    try expect(BlobExcessGasAndPrice.new(2314058).eql(BlobExcessGasAndPrice{
+    try expect(BlobExcessGasAndPrice.init(2314058).eql(BlobExcessGasAndPrice{
         .excess_blob_gas = 2314058,
         .excess_blob_gasprice = 2,
     }));
-    try expect(BlobExcessGasAndPrice.new(10 * 1024 * 1024).eql(BlobExcessGasAndPrice{
+    try expect(BlobExcessGasAndPrice.init(10 * 1024 * 1024).eql(BlobExcessGasAndPrice{
         .excess_blob_gas = 10 * 1024 * 1024,
         .excess_blob_gasprice = 23,
     }));

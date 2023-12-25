@@ -75,7 +75,7 @@ pub const InstructionResult = enum(u8) {
     FatalExternalError,
 
     /// Returns whether the result is a success.
-    pub fn is_ok(self: *Self) bool {
+    pub fn isOk(self: *Self) bool {
         return switch (self.*) {
             .Continue, .Stop, .Return, .SelfDestruct => true,
             else => false,
@@ -83,7 +83,7 @@ pub const InstructionResult = enum(u8) {
     }
 
     /// Returns whether the result is a revert.
-    pub fn is_revert(self: *Self) bool {
+    pub fn isRevert(self: *Self) bool {
         return switch (self.*) {
             .Revert, .CallTooDeep, .OutOfFund => true,
             else => false,
@@ -91,7 +91,7 @@ pub const InstructionResult = enum(u8) {
     }
 
     /// Returns whether the result is an error.
-    pub fn is_error(self: *Self) bool {
+    pub fn isError(self: *Self) bool {
         return switch (self.*) {
             .OutOfGas,
             .MemoryOOG,
@@ -134,7 +134,7 @@ pub const SuccessOrHalt = union(enum) {
     InternalCallOrCreate,
 
     /// Returns true if the transaction returned successfully without halts.
-    pub fn is_success(self: *Self) bool {
+    pub fn isSuccess(self: *Self) bool {
         return switch (self.*) {
             .Success => true,
             else => false,
@@ -142,7 +142,7 @@ pub const SuccessOrHalt = union(enum) {
     }
 
     /// Returns the [Eval] value if this a successful result
-    pub fn to_success(self: *Self) ?Eval {
+    pub fn toSuccess(self: *Self) ?Eval {
         return switch (self.*) {
             .Success => |eval| eval,
             else => null,
@@ -150,7 +150,7 @@ pub const SuccessOrHalt = union(enum) {
     }
 
     /// Returns true if the EVM has experienced an exceptional halt
-    pub fn is_halt(self: *Self) bool {
+    pub fn isHalt(self: *Self) bool {
         return switch (self.*) {
             .Halt => true,
             else => false,
@@ -158,7 +158,7 @@ pub const SuccessOrHalt = union(enum) {
     }
 
     /// Returns the [Halt] value the EVM has experienced an exceptional halt
-    pub fn to_halt(self: *Self) ?Halt {
+    pub fn toHalt(self: *Self) ?Halt {
         return switch (self.*) {
             .Halt => |halt| halt,
             else => null,
