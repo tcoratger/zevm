@@ -122,10 +122,7 @@ pub const Account = struct {
     pub fn newNotExisting(allocator: std.mem.Allocator) !Self {
         return .{
             .info = try AccountInfo.initDefault(),
-            .storage = std.AutoHashMap(
-                u256,
-                StorageSlot,
-            ).init(allocator),
+            .storage = std.AutoHashMap(u256, StorageSlot).init(allocator),
             .status = .{
                 .Loaded = false,
                 .Created = false,
@@ -167,6 +164,10 @@ pub const AccountStatus = struct {
             .Touched = false,
             .LoadedAsNotExisting = false,
         };
+    }
+
+    pub fn eql(self: *const Self, other_account: Self) bool {
+        return self.Loaded == other_account.Loaded and self.Created == other_account.Created and self.SelfDestructed == other_account.SelfDestructed and self.Touched == other_account.Touched and self.LoadedAsNotExisting == other_account.LoadedAsNotExisting;
     }
 };
 

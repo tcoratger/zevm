@@ -3,15 +3,19 @@ const AccountInfo = @import("../../../primitives/primitives.zig").AccountInfo;
 const Bytecode = @import("../../../primitives/primitives.zig").Bytecode;
 const B256 = @import("../../../primitives/primitives.zig").B256;
 
-const Database = union(enum) {
+pub const Database = union(enum) {
     const Self = @This();
 
     empty_database: EmptyDatabase,
 
-    pub fn basic(self: *Self, address: [20]u8) !?AccountInfo {
-        switch (self) {
-            inline else => |case| case.basic(address),
-        }
+    pub fn initEmpty() Self {
+        return .{ .empty_database = EmptyDatabase.init() };
+    }
+
+    pub fn basic(self: *const Self, address: [20]u8) !?AccountInfo {
+        return switch (self.*) {
+            inline else => |case| try case.basic(address),
+        };
     }
 
     pub fn codeByHash(self: *Self, codeHash: [20]u8) !?Bytecode {

@@ -20,22 +20,22 @@ pub const EmptyDatabase = struct {
     }
 
     /// Fetches account information associated with the provided address.
-    fn basic(_: *Self, _: [20]u8) !?AccountInfo {
+    pub fn basic(_: *const Self, _: [20]u8) !?AccountInfo {
         return null;
     }
 
     /// Retrieves bytecode based on the given hash.
-    fn codeByHash(_: *Self, _: B256) !?Bytecode {
+    pub fn codeByHash(_: *Self, _: B256) !?Bytecode {
         return Bytecode.init();
     }
 
     /// Retrieves data from storage using the provided address and index.
-    fn storage(_: *Self, _: [20]u8, _: u256) !?u256 {
+    pub fn storage(_: *Self, _: [20]u8, _: u256) !?u256 {
         return 0;
     }
 
     /// Generates the hash of a given number to facilitate block identification.
-    fn blockHash(_: *Self, number: u256) !?B256 {
+    pub fn blockHash(_: *Self, number: u256) !?B256 {
         var buf: [32]u8 = undefined;
         std.mem.writeInt(u256, &buf, number, .big);
         return Utils.keccak256(&buf);

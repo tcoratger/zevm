@@ -6,6 +6,8 @@ const TransientStorage = @import("../../primitives/primitives.zig").TransientSto
 const Log = @import("../../primitives/primitives.zig").Log;
 const SpecId = @import("../../primitives/primitives.zig").SpecId;
 const Account = @import("../../primitives/primitives.zig").Account;
+const AccountInfo = @import("../../primitives/primitives.zig").AccountInfo;
+const AccountStatus = @import("../../primitives/primitives.zig").AccountStatus;
 const Bytecode = @import("../../primitives/primitives.zig").Bytecode;
 const Constants = @import("../../primitives/primitives.zig").Constants;
 const Utils = @import("../../primitives/primitives.zig").Utils;
@@ -62,7 +64,7 @@ pub const JournaledState = struct {
     /// # Note
     ///
     /// Precompile addresses should be sorted.
-    pub fn init(allocator: Allocator, spec: SpecId, precompile_addresses: std.ArrayList([20]u8)) Self {
+    pub fn init(allocator: Allocator, spec: SpecId, precompile_addresses: std.ArrayList([20]u8)) !Self {
         return .{
             .state = std.AutoHashMap([20]u8, Account).init(allocator),
             .transient_storage = std.AutoHashMap(
@@ -73,7 +75,7 @@ pub const JournaledState = struct {
             .journal = std.ArrayList(std.ArrayListUnmanaged(JournalEntry)).init(allocator),
             .depth = 0,
             .spec = spec,
-            .precompile_addresses = precompile_addresses,
+            .precompile_addresses = try precompile_addresses.clone(),
         };
     }
 
@@ -296,47 +298,78 @@ pub const JournaledState = struct {
         try self.logs.append(lg);
     }
 
+    /// Loads or retrieves an account from the state, creating a new one if not found, and logs the action.
+    ///
+    /// This function attempts to fetch an account associated with the provided address from the state.
+    /// If the account exists in the state, it returns the account; otherwise, it creates a new account,
+    /// logs the action, and returns the new account. It also tracks if the loaded account is considered 'cold'.
+    ///
+    /// # Arguments
+    /// - `allocator`: The allocator used for memory allocation.
+    /// - `address`: A 20-byte array representing the address of the account to load or retrieve.
+    /// - `db`: The database for retrieving basic account information.
+    ///
+    /// # Returns
+    /// A tuple containing the loaded/retrieved account and a boolean indicating if it is considered 'cold'.
+    /// If the account exists, it returns the account and 'false' for 'cold'; if not found, it returns a new account
+    /// and 'true' for 'cold'.
+    ///
+    /// # Errors
+    /// May return an error if journaling or state manipulation fails.
     pub fn loadAccount(
         self: *Self,
         allocator: Allocator,
         address: [20]u8,
         db: Database,
     ) !std.meta.Tuple(&.{ Account, bool }) {
-        return switch (self.state.getEntry(address)) {
-            null => {
-                const account = if (db.basic(address)) |a|
-                    Account{
-                        .info = a,
-                        .storage = std.AutoHashMap(u256, StorageSlot).init(allocator),
-                        .status = .{
-                            .Loaded = false,
-                            .Created = false,
-                            .SelfDestructed = false,
-                            .Touched = false,
-                            .LoadedAsNotExisting = true,
-                        },
-                    }
-                else
-                    Account.newNotExisting(allocator);
+        if (self.state.getEntry(address)) |e| {
+            // Check if the account entry exists in the state for the provided address.
+            // If found, return the existing account entry.
+            return .{ e.value_ptr.*, false };
+        } else {
+            // If the account entry doesn't exist in the state for the provided address, create a new account.
 
-                const journal_len = self.journal.items.len;
-                const last_journal = if (journal_len == 0) return error.JournalIsEmpty else &self.journal.items[journal_len - 1];
-
-                try last_journal.append(allocator, .{ .AccountLoaded = .{ .address = address } });
-
-                var is_cold = false;
-
-                for (self.precompile_addresses) |precompile_address| {
-                    if (std.mem.eql(u8, &precompile_address, &address)) {
-                        is_cold = true;
-                        break;
-                    }
+            // Attempt to fetch basic account information from the database.
+            const account = if (try db.basic(address)) |a|
+                // If basic information exists, create an account with the retrieved information.
+                Account{
+                    .info = a,
+                    .storage = std.AutoHashMap(u256, StorageSlot).init(allocator),
+                    .status = .{
+                        .Loaded = false,
+                        .Created = false,
+                        .SelfDestructed = false,
+                        .Touched = false,
+                        .LoadedAsNotExisting = true,
+                    },
                 }
-                try self.state.put(address, account);
-                return .{ account, is_cold };
-            },
-            else => |e| .{ e.value_ptr.*, false },
-        };
+            else
+                // If basic information doesn't exist, create a new 'not-existing' account.
+                try Account.newNotExisting(allocator);
+
+            // Retrieve the last journal entry to append a log for the account load action.
+            const journal_len = self.journal.items.len;
+            const last_journal = if (journal_len == 0) return error.JournalIsEmpty else &self.journal.items[journal_len - 1];
+
+            // Log the action of loading the account.
+            try last_journal.append(allocator, .{ .AccountLoaded = .{ .address = address } });
+
+            var is_cold = false;
+
+            // Check if the loaded account should be considered 'cold'.
+            for (self.precompile_addresses.items) |precompile_address| {
+                if (std.mem.eql(u8, &precompile_address, &address)) {
+                    is_cold = true;
+                    break;
+                }
+            }
+
+            // Add the newly created/fetched account to the state.
+            try self.state.put(address, account);
+
+            // Return the loaded account and whether it is considered 'cold'.
+            return .{ account, is_cold };
+        }
     }
 
     /// Frees the resources owned by this instance.
@@ -486,7 +519,7 @@ test "JournaledState: touch should mark the account as touched" {
     defer precompile_addresses.deinit();
 
     // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
-    var journal_state = JournaledState.init(
+    var journal_state = try JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         precompile_addresses,
@@ -532,7 +565,7 @@ test "JournaledState: touch should return an error if the journal is empty" {
     defer precompile_addresses.deinit();
 
     // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
-    var journal_state = JournaledState.init(
+    var journal_state = try JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         precompile_addresses,
@@ -555,7 +588,7 @@ test "JournaledState: finalize should clean up and return modified state" {
     const address = [_]u8{0x00} ** 20;
 
     // Create a new JournaledState instance for testing with specific configurations.
-    var journal_state = JournaledState.init(
+    var journal_state = try JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         std.ArrayList([20]u8).init(std.testing.allocator),
@@ -629,7 +662,7 @@ test "JournaledState: account should return the account corresponding to the giv
     const address = [_]u8{0x00} ** 20;
 
     // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
-    var journal_state = JournaledState.init(
+    var journal_state = try JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         std.ArrayList([20]u8).init(std.testing.allocator),
@@ -664,7 +697,7 @@ test "JournaledState: setCode should set the code properly at the provided addre
     defer precompile_addresses.deinit();
 
     // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
-    var journal_state = JournaledState.init(
+    var journal_state = try JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         precompile_addresses,
@@ -732,7 +765,7 @@ test "JournaledState: incrementNonce should increment the nonce" {
     defer precompile_addresses.deinit();
 
     // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
-    var journal_state = JournaledState.init(
+    var journal_state = try JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         precompile_addresses,
@@ -790,7 +823,7 @@ test "JournaledState: tload should return the transient storage tied to the acco
     defer precompile_addresses.deinit();
 
     // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
-    var journal_state = JournaledState.init(
+    var journal_state = try JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         precompile_addresses,
@@ -812,7 +845,7 @@ test "JournaledState: addLog should push a new log to the journaled state" {
     const address = [_]u8{0x00} ** 20;
 
     // Create a new JournaledState instance for testing with specific configurations.
-    var journal_state = JournaledState.init(
+    var journal_state = try JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         std.ArrayList([20]u8).init(std.testing.allocator),
@@ -841,7 +874,7 @@ test "JournaledState: addCheckpoint should add a checkpoint in the journaled sta
     const address = [_]u8{0x00} ** 20;
 
     // Create a new JournaledState instance for testing with specific configurations.
-    var journal_state = JournaledState.init(
+    var journal_state = try JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         std.ArrayList([20]u8).init(std.testing.allocator),
@@ -883,7 +916,7 @@ test "JournaledState: addCheckpoint should add a checkpoint in the journaled sta
 
 test "JournaledState: checkpointCommit should decrease the depth of the journal by 1" {
     // Create a new JournaledState instance for testing with specific configurations.
-    var journal_state = JournaledState.init(
+    var journal_state = try JournaledState.init(
         std.testing.allocator,
         .ARROW_GLACIER,
         std.ArrayList([20]u8).init(std.testing.allocator),
@@ -900,4 +933,123 @@ test "JournaledState: checkpointCommit should decrease the depth of the journal 
     try expect(journal_state.depth == 133);
 }
 
-test "JournaledState: toto" {}
+test "JournaledState: loadAccount should return constructed account and is cold if account doesn't exist in state" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Initialize an empty database.
+    const db = Database.initEmpty();
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+    try precompile_addresses.append(address);
+
+    // Create a new JournaledState instance for testing with specific arrow type and precompile addresses.
+    var journal_state = try JournaledState.init(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(std.testing.allocator, .{ .AccountTouched = .{ .address = address } });
+
+    // Append the journal entry to the journal state's journal.
+    try journal_state.journal.append(journal_entry);
+
+    // Load the account using the test function.
+    const res = try journal_state.loadAccount(std.testing.allocator, address, db);
+
+    // Define the expected journal entry representing the account touch event and nonce change.
+    const expected_journal = [_]JournalEntry{
+        .{ .AccountTouched = .{ .address = [_]u8{0x00} ** 20 } },
+        .{ .AccountLoaded = .{ .address = [_]u8{0x00} ** 20 } },
+    };
+
+    // Ensure that the actual journal entry matches the expected journal entry.
+    try expectEqualSlices(JournalEntry, &expected_journal, journal_state.journal.items[0].items);
+
+    // Assert that the loaded account is considered 'cold'.
+    try expect(res[1]);
+
+    // Check that the account status matches the expected 'LoadedAsNotExisting' state.
+    try expectEqual(
+        AccountStatus{
+            .Loaded = false,
+            .Created = false,
+            .SelfDestructed = false,
+            .Touched = false,
+            .LoadedAsNotExisting = true,
+        },
+        res[0].status,
+    );
+
+    // Check if the loaded account information matches the expected default values.
+    try expect(res[0].info.eq(.{
+        .balance = 0,
+        .nonce = 0,
+        .code_hash = Constants.KECCAK_EMPTY,
+        .code = Bytecode.init(),
+    }));
+
+    // Check that the storage count of the loaded account is zero.
+    try expectEqual(@as(usize, 0), res[0].storage.count());
+}
+
+test "JournaledState: loadAccount should return account corresponding to provided address if account exists in state" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Initialize an empty database.
+    const db = Database.initEmpty();
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+
+    // Create a new JournaledState instance for testing with specific arrow type and precompile addresses.
+    var journal_state = try JournaledState.init(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Add a 'not-existing' account to the state for the provided address.
+    try journal_state.state.put(address, try Account.newNotExisting(std.testing.allocator));
+
+    // Load the account using the test function.
+    const res = try journal_state.loadAccount(std.testing.allocator, address, db);
+
+    // Assert that the loaded account is not considered 'cold'.
+    try expect(!res[1]);
+
+    // Check that the account status matches the expected state.
+    try expectEqual(
+        AccountStatus{
+            .Loaded = false,
+            .Created = false,
+            .SelfDestructed = false,
+            .Touched = false,
+            .LoadedAsNotExisting = true,
+        },
+        res[0].status,
+    );
+
+    // Check if the loaded account information matches the expected default values.
+    try expect(res[0].info.eq(.{
+        .balance = 0,
+        .nonce = 0,
+        .code_hash = Constants.KECCAK_EMPTY,
+        .code = Bytecode.init(),
+    }));
+
+    // Check that the storage count of the loaded account is zero.
+    try expectEqual(@as(usize, 0), res[0].storage.count());
+}
