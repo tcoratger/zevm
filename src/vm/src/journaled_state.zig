@@ -79,6 +79,18 @@ pub const JournaledState = struct {
         };
     }
 
+    /// Retrieves the last journal entry from the JournaledState.
+    ///
+    /// Returns a reference to the last recorded journal entry.
+    /// If the journal is empty, returns an error indicating the journal is empty.
+    pub fn getLastJournalEntry(self: *JournaledState) !*std.ArrayListUnmanaged(JournalEntry) {
+        const journal_len = self.journal.items.len;
+        return if (journal_len == 0)
+            error.JournalIsEmpty
+        else
+            &self.journal.items[journal_len - 1];
+    }
+
     /// Marks an account as touched, indicating its relevance for inclusion in the state.
     ///
     /// Touched accounts are crucial for state management operations like state clearing,
@@ -88,10 +100,9 @@ pub const JournaledState = struct {
     /// - `address`: The address of the account to mark as touched.
     pub fn touch(self: *Self, allocator: Allocator, address: *[20]u8) !void {
         if (self.state.getPtr(address.*)) |account| {
-            const journal_len = self.journal.items.len;
             try Self.touchAccount(
                 allocator,
-                if (journal_len == 0) return error.JournalIsEmpty else &self.journal.items[journal_len - 1],
+                try self.getLastJournalEntry(),
                 address.*,
                 account,
             );
@@ -174,20 +185,19 @@ pub const JournaledState = struct {
         // Retrieve the account associated with the provided address.
         const account = try self.getAccount(address);
 
-        // Determine the length of the journal and get the last journal entry if available.
-        const journal_len = self.journal.items.len;
-        const last_journal = if (journal_len == 0) return error.JournalIsEmpty else &self.journal.items[journal_len - 1];
+        // Retrieve the last recorded journal entry.
+        const last_journal_item = try self.getLastJournalEntry();
 
         // Mark the account as touched in the journal to signify the upcoming code change.
         try Self.touchAccount(
             allocator,
-            last_journal,
+            last_journal_item,
             address,
             account,
         );
 
         // Append the code change to the journal for future reference.
-        try last_journal.append(allocator, .{ .CodeChange = .{ .address = address } });
+        try last_journal_item.append(allocator, .{ .CodeChange = .{ .address = address } });
 
         // Update the account's code hash with the hash of the new code.
         account.info.code_hash = code.hash_slow();
@@ -213,19 +223,19 @@ pub const JournaledState = struct {
         // Check if the account's nonce is at the maximum value.
         if (account.info.nonce == std.math.maxInt(u64)) return null;
 
-        const journal_len = self.journal.items.len;
-        const last_journal = if (journal_len == 0) return error.JournalIsEmpty else &self.journal.items[journal_len - 1];
+        // Retrieve the last recorded journal entry.
+        const last_journal_item = try self.getLastJournalEntry();
 
         // Mark the account as touched in the journal to signify the upcoming nonce change.
         try Self.touchAccount(
             allocator,
-            last_journal,
+            last_journal_item,
             address,
             account,
         );
 
         // Append the nonce change to the journal for future reference.
-        try last_journal.append(allocator, .{ .NonceChange = .{ .address = address } });
+        try last_journal_item.append(allocator, .{ .NonceChange = .{ .address = address } });
 
         // Increment the account's nonce.
         account.info.nonce += 1;
@@ -347,12 +357,11 @@ pub const JournaledState = struct {
                 // If basic information doesn't exist, create a new 'not-existing' account.
                 try Account.newNotExisting(allocator);
 
-            // Retrieve the last journal entry to append a log for the account load action.
-            const journal_len = self.journal.items.len;
-            const last_journal = if (journal_len == 0) return error.JournalIsEmpty else &self.journal.items[journal_len - 1];
-
             // Log the action of loading the account.
-            try last_journal.append(allocator, .{ .AccountLoaded = .{ .address = address } });
+            try (try self.getLastJournalEntry()).append(
+                allocator,
+                .{ .AccountLoaded = .{ .address = address } },
+            );
 
             var is_cold = false;
 
