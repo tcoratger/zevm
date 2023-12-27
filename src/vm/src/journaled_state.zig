@@ -381,6 +381,44 @@ pub const JournaledState = struct {
         }
     }
 
+    /// Determines account existence and touch status by loading the account from the state.
+    ///
+    /// This function is a modified version of `loadAccount` and is designed to assess the existence
+    /// and touch status of an account within the state. It performs validations and returns boolean
+    /// flags indicating the existence and touch status of the loaded account.
+    ///
+    /// # Arguments
+    /// - `allocator`: The allocator used for memory allocation.
+    /// - `address`: A 20-byte array representing the address of the account to assess.
+    /// - `db`: The database for retrieving basic account information.
+    ///
+    /// # Returns
+    /// A tuple containing boolean flags indicating the account's existence and touch status.
+    /// If the account exists, the first value is 'true', and the second indicates whether the account is loaded.
+    ///
+    /// # Errors
+    /// May return an error if journaling or state manipulation fails.
+    pub fn loadAccountExist(
+        self: *Self,
+        allocator: Allocator,
+        address: [20]u8,
+        db: Database,
+    ) !std.meta.Tuple(&.{ bool, bool }) {
+        // Load the account using the `loadAccount` function.
+        var load_account = try self.loadAccount(allocator, address, db);
+
+        // If the `SPURIOUS_DRAGON` spec is enabled, return the appropriate flags.
+        if (SpecId.enabled(self.spec, .SPURIOUS_DRAGON)) {
+            return .{ load_account[1], !load_account[0].isEmpty() };
+        }
+
+        // Determine account existence and touch status based on loaded account properties.
+        return .{
+            load_account[1],
+            !load_account[0].isLoadedAsNotExisting() or load_account[0].isTouched(),
+        };
+    }
+
     /// Frees the resources owned by this instance.
     pub fn deinit(self: *Self) void {
         self.state.deinit();
@@ -1061,4 +1099,46 @@ test "JournaledState: loadAccount should return account corresponding to provide
 
     // Check that the storage count of the loaded account is zero.
     try expectEqual(@as(usize, 0), res[0].storage.count());
+}
+
+test "JournaledState: loadAccountExist should return is_cold and is_exists about account with SPURIOUS_DRAGON enabled" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Initialize an empty database.
+    const db = Database.initEmpty();
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+
+    // Append the zero-filled address to the precompile addresses ArrayList.
+    try precompile_addresses.append(address);
+
+    // Create a new JournaledState instance for testing with specific arrow type and precompile addresses.
+    var journal_state = try JournaledState.init(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(std.testing.allocator, .{ .AccountTouched = .{ .address = address } });
+
+    // Append the journal entry to the journal state's journal.
+    try journal_state.journal.append(journal_entry);
+
+    // Load the account using the test function.
+    const load_account_exist = try journal_state.loadAccountExist(std.testing.allocator, address, db);
+
+    // Assert that the loaded account is considered 'cold'.
+    try expect(load_account_exist[0]);
+
+    // Assert that the loaded account didn't exist.
+    try expect(!load_account_exist[1]);
 }
