@@ -176,11 +176,37 @@ pub const AccountInfo = struct {
     const Self = @This();
 
     /// Account balance.
+    ///
+    /// The balance represents a scalar value that equals the number of Wei owned by this address.
+    /// Formally denoted as `σ[a]b` in the state.
+    ///
+    /// For an account of address `a` in state `σ`, the balance denotes the amount of Wei owned by that account.
+    ///
+    /// It's important to note that Wei is the smallest denomination of Ether in the Ethereum network.
     balance: u256,
     /// Account nonce.
+    ///
+    /// The nonce represents a scalar value that equals the number of transactions sent from this address
+    /// or, in the case of accounts with associated code, the number of contract-creations made by this account.
+    ///
+    /// For an account of address `a` in state `σ` (formally denoted as `σ[a]n`), the nonce is
+    /// associated with tracking the count of transactions or contract creations.
+    ///
+    /// It serves as a way to prevent replay attacks and helps maintain the order of transactions
+    /// originating from a specific account.
     nonce: u64,
-    /// code hash,
+    /// Code hash.
+    ///
+    /// The `code_hash` represents the hash of the Ethereum Virtual Machine (EVM) code associated with
+    /// this account. When a message call is directed to this address, this code is executed.
+    ///
+    /// All code fragments linked to respective hashes are stored in the state database for future retrieval.
+    /// Formally denoted as `σ[a]c`, where `σ` represents the state, `a` is the account address, and `c` denotes the code.
+    ///
+    /// The code itself can be represented as `b`, such that applying the Keccak-256 hash function (`KEC(b)`) results
+    /// in the value stored at `σ[a]c`.
     code_hash: bits.B256,
+
     /// code: if None, `code_by_hash` will be used to fetch it if code needs to be loaded from
     /// inside of revm.
     code: ?bytecode.Bytecode,
@@ -212,6 +238,20 @@ pub const AccountInfo = struct {
         };
     }
 
+    /// Checks if the account is empty.
+    ///
+    /// An Ethereum account is considered empty when it satisfies the following criteria:
+    /// - It has no code (represented by `self.code_hash` being equal to `KECCAK_EMPTY` or `bits.B256.zero()`).
+    /// - The nonce (`self.nonce`) is equal to zero.
+    /// - The balance (`self.balance`) is equal to zero.
+    ///
+    /// The condition for an empty account is formally represented as `EMPTY(σ, a)`, where:
+    /// - `σ` represents the Ethereum state.
+    /// - `a` is the account address.
+    /// - `σ[a]c` represents the code hash (`self.code_hash`).
+    /// - `σ[a]n` represents the nonce (`self.nonce`).
+    ///
+    /// The function returns `true` if the account meets the criteria for being empty; otherwise, it returns `false`.
     pub fn isEmpty(self: Self) bool {
         return self.balance == 0 and self.nonce == 0 and (self.code_hash.eql(constants.Constants.KECCAK_EMPTY) or self.code_hash.eql(bits.B256.zero()));
     }

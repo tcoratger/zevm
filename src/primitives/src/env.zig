@@ -82,23 +82,31 @@ pub const BlobExcessGasAndPrice = struct {
 pub const BlockEnv = struct {
     const Self = @This();
 
-    /// The number of ancestor blocks of this block (block height)
-    number: u256,
-    /// Coinbase or miner or address that created and signed the block.
+    /// Represents the number of ancestor blocks or the block height.
     ///
-    /// This is the receiver address of all the gas spent in the block.
+    /// `number` corresponds to a scalar value equal to the number of ancestor blocks. The genesis block holds a number of zero.
+    ///
+    /// The block number is the parent’s block number incremented by one.
+    number: u256,
+    /// Refers to the address that receives all fees collected from successfully mining this block.
+    ///
+    /// `coinbase` represents the receiver address where all the gas spent in the block is deposited.
     coinbase: bits.B160,
     /// The timestamp of the block in seconds since the UNIX epoch.
     timestamp: u256,
-    /// The gas limit of the block
+    /// Indicates the current limit of gas expenditure per block.
+    ///
+    /// `gas_limit` denotes the maximum amount of gas that can be spent within the block.
     gas_limit: u256,
     /// The base fee per gas, added in the London upgrade with [EIP-1559].
     ///
     /// [EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
     base_fee: u256,
-    /// The difficulty of the block.
+    /// Represents the difficulty level of the block.
     ///
-    /// Unused after the Paris (AKA the merge) upgrade, and replaced by `prevrandao`.
+    /// `difficulty` refers to a scalar value corresponding to the difficulty level of the block.
+    ///
+    /// It was utilized up until the Paris upgrade (also known as the merge) and has been replaced by `prevrandao`.
     difficulty: u256,
     /// The output of the randomness beacon provided by the beacon chain.
     ///
@@ -217,30 +225,65 @@ pub const TxEnv = struct {
 
     /// The caller, author or signer of the transaction.
     caller: bits.B160,
-    /// The gas limit of the transaction.
+    /// Represents the gas limit of the transaction.
+    ///
+    /// The `gas_limit` field denotes a scalar value that defines the maximum amount of gas allowed
+    /// for executing this transaction. This gas limit is paid upfront, before any computation begins,
+    /// and it cannot be increased later during the transaction execution process.
+    ///
+    /// It is a crucial parameter as it determines the upper limit of computational steps or operations
+    /// that can be performed by the transaction before it terminates. Exceeding this limit leads to
+    /// the termination of the transaction's execution.
     gas_limit: u64,
-    /// The gas price of the transaction.
+    /// Represents the transaction's gas price, denoting the number of Wei to be paid per unit of gas.
+    ///
+    /// The `gas_price` field stands for the value paid for each unit of gas utilized during the execution of
+    /// the transaction, expressed in Wei.
     gas_price: u256,
-    /// The destination of the transaction.
+    /// Represents the destination of the transaction.
+    ///
+    /// The `transact_to` field signifies the 160-bit address of the recipient in a message call. In the
+    /// case of a contract creation transaction, it's denoted as ∅, which signifies the sole member of
+    /// the empty set B0.
+    ///
+    /// This field designates where the transaction is directed. For regular transactions, it identifies
+    /// the address of the intended recipient of the transaction, while for contract creation transactions,
+    /// it symbolizes the absence of a specific recipient (hence the symbol ∅ representing the empty set).
     transact_to: TransactTo,
-    /// The value sent to `transact_to`.
+    /// Represents the value sent to the recipient of the transaction.
+    ///
+    /// The `value` field signifies a scalar value equal to the number of Wei intended to be transferred
+    /// to the message call’s recipient. In the case of a contract creation transaction, this value serves
+    /// as an endowment to the newly created account.
+    ///
+    /// This field denotes the amount of Wei to be transferred with the transaction, whether to a regular
+    /// recipient or as an endowment for a newly created contract.
     value: u256,
-    /// The data of the transaction.
+    /// Represents the transaction's input data, which is an array of unlimited size containing bytes.
+    ///
+    /// The `data` field stands for the input data of the message call, formally denoted as an array of bytes (`[]u8`).
     data: []u8,
-    /// The nonce of the transaction. If set to `None`, no checks are performed.
+
+    /// The nonce of the transaction. If set to `null`, no checks are performed.
     nonce: ?u64,
-    /// The chain ID of the transaction. If set to `None`, no checks are performed.
+    /// The chain ID of the transaction. If set to `null`, no checks are performed.
     ///
     /// Incorporated as part of the Spurious Dragon upgrade via [EIP-155].
     ///
     /// [EIP-155]: https://eips.ethereum.org/EIPS/eip-155
     chain_id: ?u64,
-    /// A list of addresses and storage keys that the transaction plans to access.
+    /// Represents a list of addresses and associated storage keys that the transaction intends to access.
     ///
-    /// Added in [EIP-2930].
+    /// The `access_list` field embodies a list of access entries that serve as a pre-warmed set. Each access
+    /// entry consists of a tuple comprising an account address (`Ea`) and a list of associated storage keys (`Es`).
+    ///
+    /// Introduced in [EIP-2930].
     ///
     /// [EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
-    access_list: std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(u256) })),
+    access_list: std.ArrayList(std.meta.Tuple(&.{
+        bits.B160,
+        std.ArrayList(u256),
+    })),
     /// The priority fee per gas.
     ///
     /// Incorporated as part of the London upgrade via [EIP-1559].
@@ -272,7 +315,10 @@ pub const TxEnv = struct {
             .data = undefined,
             .chain_id = null,
             .nonce = null,
-            .access_list = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(u256) })).init(allocator),
+            .access_list = std.ArrayList(std.meta.Tuple(&.{
+                bits.B160,
+                std.ArrayList(u256),
+            })).init(allocator),
             .blob_hashes = std.ArrayList(bits.B256).init(allocator),
             .max_fee_per_blob_gas = null,
         };
@@ -507,7 +553,10 @@ test "Env: effective_gas_price with gas_priority_fee returning gas_price" {
         .data = undefined,
         .chain_id = null,
         .nonce = null,
-        .access_list = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(u256) })).init(std.testing.allocator),
+        .access_list = std.ArrayList(std.meta.Tuple(&.{
+            bits.B160,
+            std.ArrayList(u256),
+        })).init(std.testing.allocator),
         .blob_hashes = std.ArrayList(bits.B256).init(std.testing.allocator),
         .max_fee_per_blob_gas = null,
     };
@@ -534,7 +583,10 @@ test "Env: effective_gas_price with gas_priority_fee returning gas_priority_fee 
         .data = undefined,
         .chain_id = null,
         .nonce = null,
-        .access_list = std.ArrayList(@TypeOf(.{ bits.B160, std.ArrayList(u256) })).init(std.testing.allocator),
+        .access_list = std.ArrayList(std.meta.Tuple(&.{
+            bits.B160,
+            std.ArrayList(u256),
+        })).init(std.testing.allocator),
         .blob_hashes = std.ArrayList(bits.B256).init(std.testing.allocator),
         .max_fee_per_blob_gas = null,
     };
