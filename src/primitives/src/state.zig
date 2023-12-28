@@ -102,7 +102,7 @@ pub const Account = struct {
     }
 
     /// If account status is marked as created.
-    pub fn isCreated(self: *Self) bool {
+    pub fn isCreated(self: *const Self) bool {
         return self.status.Created;
     }
 
