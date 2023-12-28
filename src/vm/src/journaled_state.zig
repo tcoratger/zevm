@@ -419,6 +419,36 @@ pub const JournaledState = struct {
         };
     }
 
+    /// Loads the code associated with an account or initializes it if absent.
+    ///
+    /// # Arguments
+    /// - `allocator`: The allocator used for memory allocation.
+    /// - `address`: The 20-byte address representing the account.
+    /// - `db`: The database for retrieving account code information.
+    ///
+    /// # Returns
+    /// A tuple containing the loaded/retrieved account and a boolean indicating if it's initialized.
+    pub fn loadCode(
+        self: *Self,
+        allocator: Allocator,
+        address: [20]u8,
+        db: Database,
+    ) !std.meta.Tuple(&.{ Account, bool }) {
+        // Load the account using the `loadAccount` function.
+        var load_account = try self.loadAccount(allocator, address, db);
+
+        if (load_account[0].info.code == null) {
+            // If code is null, initialize it based on code hash.
+            if (load_account[0].info.code_hash.eql(Constants.KECCAK_EMPTY)) {
+                load_account[0].info.code = Bytecode.init();
+            } else {
+                load_account[0].info.code = try db.codeByHash(load_account[0].info.code_hash);
+            }
+        }
+
+        return load_account;
+    }
+
     /// Frees the resources owned by this instance.
     pub fn deinit(self: *Self) void {
         self.state.deinit();
@@ -1141,4 +1171,46 @@ test "JournaledState: loadAccountExist should return is_cold and is_exists about
 
     // Assert that the loaded account didn't exist.
     try expect(!load_account_exist[1]);
+}
+
+test "JournaledState: loadCode should create a new code if code hash is Keccak Empty" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Initialize an empty database.
+    const db = Database.initEmpty();
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+
+    // Append the zero-filled address to the precompile addresses ArrayList.
+    try precompile_addresses.append(address);
+
+    // Create a new JournaledState instance for testing with specific arrow type and precompile addresses.
+    var journal_state = try JournaledState.init(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(std.testing.allocator, .{ .AccountTouched = .{ .address = address } });
+
+    // Append the journal entry to the journal state's journal.
+    try journal_state.journal.append(journal_entry);
+
+    // Load the code using the `loadCode` function.
+    const load_code = try journal_state.loadCode(std.testing.allocator, address, db);
+
+    // Assert that the loaded code is initialized if the code hash is Keccak Empty.
+    try expect(load_code[0].info.code.?.eql(Bytecode.init()));
+
+    // Assert that the loaded code is initialized, indicating the code was created.
+    try expect(load_code[1]);
 }

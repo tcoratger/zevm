@@ -25,17 +25,17 @@ pub const EmptyDatabase = struct {
     }
 
     /// Retrieves bytecode based on the given hash.
-    pub fn codeByHash(_: *Self, _: B256) !?Bytecode {
+    pub fn codeByHash(_: *const Self, _: B256) !Bytecode {
         return Bytecode.init();
     }
 
     /// Retrieves data from storage using the provided address and index.
-    pub fn storage(_: *Self, _: [20]u8, _: u256) !?u256 {
+    pub fn storage(_: *Self, _: [20]u8, _: u256) !u256 {
         return 0;
     }
 
     /// Generates the hash of a given number to facilitate block identification.
-    pub fn blockHash(_: *Self, number: u256) !?B256 {
+    pub fn blockHash(_: *Self, number: u256) !B256 {
         var buf: [32]u8 = undefined;
         std.mem.writeInt(u256, &buf, number, .big);
         return Utils.keccak256(&buf);
@@ -56,18 +56,18 @@ test "EmptyDatabase: init function should return an empty database" {
     );
 
     // Ensure codeByHash returns Bytecode.init() for B256.zero().
-    try expect((try empty_db.codeByHash(B256.zero())).?.eql(Bytecode.init()));
+    try expect((try empty_db.codeByHash(B256.zero())).eql(Bytecode.init()));
 
     // Verify that storage returns 0 for the given address and index 150.
     try expectEqual(
-        @as(?u256, 0),
+        @as(u256, 0),
         try empty_db.storage(address, 150),
     );
 
     // Validate the blockHash function output for the number 1.
     try expectEqual(
         @as(
-            ?B256,
+            B256,
             B256{ .bytes = [32]u8{
                 177,
                 14,

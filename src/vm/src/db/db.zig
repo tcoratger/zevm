@@ -18,21 +18,21 @@ pub const Database = union(enum) {
         };
     }
 
-    pub fn codeByHash(self: *Self, codeHash: [20]u8) !?Bytecode {
-        switch (self) {
-            inline else => |case| case.codeByHash(codeHash),
-        }
+    pub fn codeByHash(self: *const Self, codeHash: B256) !Bytecode {
+        return switch (self.*) {
+            inline else => |case| try case.codeByHash(codeHash),
+        };
     }
 
-    pub fn storage(self: *Self, address: [20]u8, index: u256) !?u256 {
-        switch (self) {
-            inline else => |case| case.storage(address, index),
-        }
+    pub fn storage(self: *const Self, address: [20]u8, index: u256) !u256 {
+        return switch (self.*) {
+            inline else => |case| try case.storage(address, index),
+        };
     }
 
-    pub fn blockHash(self: *Self, number: B256) !?B256 {
-        switch (self) {
-            inline else => |case| case.blockHash(number),
-        }
+    pub fn blockHash(self: *const Self, number: B256) !B256 {
+        return switch (self.*) {
+            inline else => |case| try case.blockHash(number),
+        };
     }
 };
