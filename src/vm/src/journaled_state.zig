@@ -1790,4 +1790,6 @@ test "JournaledState: journalRevert for AccountLoaded" {
 
     // Assert that the state does not contain the previously added address after the revert operation.
     try expect(!journal_state.state.contains(address));
+
+    // TODO: Add a larger set of unit tests to cover all `JournalEntry` configurations
 }
