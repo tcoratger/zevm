@@ -294,6 +294,78 @@ pub const JournaledState = struct {
         return 0;
     }
 
+    /// Store transient storage tied to the account.
+    ///
+    /// Manipulates transient storage using Ethereum Improvement Proposal EIP-1153,
+    /// enabling manipulation of state discarded after each transaction.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - Address (20 bytes) associated with the value in transient storage.
+    /// * `key` - Key (256-bit unsigned integer) representing the value's identifier.
+    /// * `new` - New value (256-bit unsigned integer) to store in transient storage.
+    ///
+    /// # EIP-1153 Specifications
+    ///
+    /// The function interacts with transient storage, akin to storage but cleared after transactions.
+    /// It offers gas-efficient communication between frames and contracts, resolving reentrancy issues
+    /// and reducing the impact of EIP-3529 limitations on refunds for transiently-set storage slots.
+    ///
+    /// # Gas Costs and Behavior
+    ///
+    /// Gas cost for `TSTORE` is equivalent to a warm `SSTORE` of a dirty slot (currently 100 gas).
+    /// Gas cost for `TLOAD` mirrors a hot `SLOAD` (currently 100 gas).
+    ///
+    /// All values in transient storage are discarded at the transaction's end.
+    /// Transient storage is private to the owning contract, accessible only by owning contract frames.
+    ///
+    /// # Security Considerations
+    ///
+    /// Smart contract developers must understand transient storage lifetimes to avoid unintended bugs,
+    /// especially in reentrancy-sensitive scenarios. Using transient storage as in-memory mappings
+    /// requires caution due to differing behaviors compared to memory.
+    pub fn tstore(
+        self: *Self,
+        allocator: Allocator,
+        address: [20]u8,
+        key: u256,
+        new: u256,
+    ) !void {
+        // Check if the new value is 0 (indicating removal) or set a new value in transient storage
+        const had_value: ?u256 = if (new == 0) blk: {
+            // Attempt to remove the value associated with the address and key
+            break :blk if (self.transient_storage.fetchRemove(.{ address, key })) |v|
+                v.value
+            else
+                null;
+        } else blk: {
+            // Attempt to set a new value for the given address and key
+            const previous_value = if (try self.transient_storage.fetchPut(
+                .{ address, key },
+                new,
+            )) |kv|
+                kv.value
+            else
+                0;
+
+            // If the previous value is different from the new value, break to exit block
+            break :blk if (previous_value != new) previous_value else null;
+        };
+
+        // If a value was present in the transient storage
+        if (had_value) |v| {
+            // Append the change to the transaction's journal
+            try (try self.getLastJournalEntry()).append(
+                allocator,
+                .{ .TransientStorageChange = .{
+                    .address = address,
+                    .key = key,
+                    .had_value = v,
+                } },
+            );
+        }
+    }
+
     /// Appends a log entry to the log associated with the JournaledState.
     ///
     /// This function facilitates adding a Log entry to the JournaledState's log.
@@ -1025,6 +1097,114 @@ test "JournaledState: tload should return the transient storage tied to the acco
 
     // Verify that after storing, the value retrieved from transient storage tied to address and key 10 is 111.
     try expectEqual(@as(u256, 111), journal_state.tload(address, 10));
+}
+
+test "JournaledState: tsore should store transient storage tied to the account with new equal to zero" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+
+    // Append the zero-filled address to the precompile addresses ArrayList.
+    try precompile_addresses.append(address);
+
+    // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
+    var journal_state = try JournaledState.init(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Put a new 'not-existing' account into the state at the given address.
+    try journal_state.state.put(address, try Account.newNotExisting(std.testing.allocator));
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(std.testing.allocator, .{ .AccountTouched = .{ .address = address } });
+
+    // Append the journal entry to the journal state's journal.
+    try journal_state.journal.append(journal_entry);
+
+    // Put a value (111) in transient storage at a specific address and key.
+    try journal_state.transient_storage.put(.{ address, 10 }, 111);
+
+    // Call the tstore function with the address, key (10), and new value (0).
+    try journal_state.tstore(std.testing.allocator, address, 10, 0);
+
+    // Assert that the count of transient storage is 0 after the operation.
+    try expectEqual(@as(usize, 0), journal_state.transient_storage.count());
+
+    // Construct an expected journal state with an account touch event and a transient storage change event.
+    const expected_journal = [_]JournalEntry{
+        .{ .AccountTouched = .{ .address = [_]u8{0x00} ** 20 } },
+        .{ .TransientStorageChange = .{ .address = [_]u8{0x00} ** 20, .key = 10, .had_value = 111 } },
+    };
+
+    // Assert that the actual journal state matches the expected journal state.
+    try expectEqualSlices(JournalEntry, &expected_journal, journal_state.journal.items[0].items);
+}
+
+test "JournaledState: tsore should store transient storage tied to the account with new not equal to zero" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+
+    // Append the zero-filled address to the precompile addresses ArrayList.
+    try precompile_addresses.append(address);
+
+    // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
+    var journal_state = try JournaledState.init(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Put a new 'not-existing' account into the state at the given address.
+    try journal_state.state.put(address, try Account.newNotExisting(std.testing.allocator));
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(std.testing.allocator, .{ .AccountTouched = .{ .address = address } });
+
+    // Append the journal entry to the journal state's journal.
+    try journal_state.journal.append(journal_entry);
+
+    // Put a value (111) in transient storage at a specific address and key.
+    try journal_state.transient_storage.put(.{ address, 10 }, 111);
+
+    // Call the tstore function with the address, key (10), and new value (23).
+    try journal_state.tstore(std.testing.allocator, address, 10, 23);
+
+    // Assert that the count of transient storage is 1 after the operation.
+    try expectEqual(@as(usize, 1), journal_state.transient_storage.count());
+
+    // Assert that the value in transient storage at the given address and key is 23.
+    try expectEqual(
+        @as(u256, 23),
+        journal_state.transient_storage.get(.{ address, 10 }).?,
+    );
+
+    // Construct an expected journal state with an account touch event and a transient storage change event.
+    const expected_journal = [_]JournalEntry{
+        .{ .AccountTouched = .{ .address = [_]u8{0x00} ** 20 } },
+        .{ .TransientStorageChange = .{ .address = [_]u8{0x00} ** 20, .key = 10, .had_value = 111 } },
+    };
+
+    // Assert that the actual journal state matches the expected journal state.
+    try expectEqualSlices(JournalEntry, &expected_journal, journal_state.journal.items[0].items);
 }
 
 test "JournaledState: addLog should push a new log to the journaled state" {
