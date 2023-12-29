@@ -22,28 +22,28 @@ pub const TransientStorage = std.AutoHashMap(
 pub const StorageSlot = struct {
     const Self = @This();
 
-    original_value: u256,
+    previous_or_original_value: u256,
     /// When loaded with sload present value is set to original value
     present_value: u256,
 
     pub fn init(new_original_value: u256) Self {
         return .{
-            .original_value = new_original_value,
+            .previous_or_original_value = new_original_value,
             .present_value = new_original_value,
         };
     }
 
     pub fn set(self: *Self, new_original_value: u256) void {
-        self.original_value = new_original_value;
+        self.previous_or_original_value = new_original_value;
         self.present_value = new_original_value;
     }
 
     pub fn isChanged(self: *Self) bool {
-        return self.original_value == self.present_value;
+        return self.previous_or_original_value == self.present_value;
     }
 
     pub fn getOriginalValue(self: Self) u256 {
-        return self.original_value;
+        return self.previous_or_original_value;
     }
 
     pub fn getPresentValue(self: Self) u256 {
@@ -286,7 +286,7 @@ pub const AccountInfo = struct {
 test "State - StorageSlot : init" {
     const storage_slot = StorageSlot.init(0);
 
-    try expectEqual(@as(u256, 0), storage_slot.original_value);
+    try expectEqual(@as(u256, 0), storage_slot.previous_or_original_value);
     try expectEqual(@as(u256, 0), storage_slot.present_value);
 }
 
@@ -294,7 +294,7 @@ test "State - StorageSlot : set" {
     var storage_slot = StorageSlot.init(0);
     storage_slot.set(2);
 
-    try expectEqual(@as(u256, 2), storage_slot.original_value);
+    try expectEqual(@as(u256, 2), storage_slot.previous_or_original_value);
     try expectEqual(@as(u256, 2), storage_slot.present_value);
 }
 
@@ -326,7 +326,7 @@ test "Account: self destruct functions" {
 
     defer map.deinit();
 
-    try map.put(0, .{ .original_value = 0, .present_value = 0 });
+    try map.put(0, .{ .previous_or_original_value = 0, .present_value = 0 });
 
     const default_account = try AccountInfo.initDefault();
 
@@ -347,7 +347,7 @@ test "Account: touched functions" {
     var map = std.AutoHashMap(u256, StorageSlot).init(std.testing.allocator);
     defer map.deinit();
 
-    try map.put(0, .{ .original_value = 0, .present_value = 0 });
+    try map.put(0, .{ .previous_or_original_value = 0, .present_value = 0 });
 
     const default_account = try AccountInfo.initDefault();
 
@@ -368,7 +368,7 @@ test "Account: created functions" {
     var map = std.AutoHashMap(u256, StorageSlot).init(std.testing.allocator);
     defer map.deinit();
 
-    try map.put(0, .{ .original_value = 0, .present_value = 0 });
+    try map.put(0, .{ .previous_or_original_value = 0, .present_value = 0 });
 
     const default_account = try AccountInfo.initDefault();
 
@@ -389,7 +389,7 @@ test "Account: isEmpty function" {
     var map = std.AutoHashMap(u256, StorageSlot).init(std.testing.allocator);
     defer map.deinit();
 
-    try map.put(0, StorageSlot{ .original_value = 0, .present_value = 0 });
+    try map.put(0, StorageSlot{ .previous_or_original_value = 0, .present_value = 0 });
 
     const default_account = try AccountInfo.initDefault();
 

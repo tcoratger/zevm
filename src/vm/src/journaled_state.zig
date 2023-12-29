@@ -449,7 +449,7 @@ pub const JournaledState = struct {
         return load_account;
     }
 
-    /// Loads a storage slot from an account.
+    /// Loads a storage slot value from the current account's storage onto the stack.
     ///
     /// # Note
     /// Assumes the account is already present and loaded.
@@ -474,8 +474,7 @@ pub const JournaledState = struct {
         db: Database,
     ) !std.meta.Tuple(&.{ u256, bool }) {
         // Retrieve the account pointer or return an error if missing.
-        var account = self.state.getPtr(address) orelse return error.AccountIsMissing;
-        defer account.deinit();
+        const account = try self.getAccount(address);
 
         // Attempt to get the storage entry.
         return if (account.storage.getEntry(key)) |occ|
@@ -501,6 +500,59 @@ pub const JournaledState = struct {
         };
     }
 
+    /// Stores a storage slot value and returns (original, present, new, is_cold) tuple.
+    ///
+    /// # Arguments
+    /// - `self`: The JournaledState instance.
+    /// - `allocator`: The allocator used for memory allocation.
+    /// - `address`: A 20-byte array representing the address of the account.
+    /// - `key`: The key of the storage slot.
+    /// - `new`: The new value to be stored in the storage slot.
+    /// - `db`: The database for retrieving storage information.
+    ///
+    /// # Returns
+    /// A tuple containing the original, present, and new values of the storage slot,
+    /// along with a boolean indicating if the value was cold loaded.
+    ///
+    /// # Errors
+    /// May return an error if the account is missing or if storage retrieval fails.
+    pub fn sstore(
+        self: *Self,
+        allocator: Allocator,
+        address: [20]u8,
+        key: u256,
+        new: u256,
+        db: Database,
+    ) !std.meta.Tuple(&.{ u256, u256, u256, bool }) {
+        // Load the storage slot using the 'sload' function.
+        const load = try self.sload(allocator, address, key, db);
+
+        // Retrieve the account pointer or return an error if missing.
+        const account = try self.getAccount(address);
+
+        // Retrieve the storage slot pointer or return an error if missing.
+        const slot = account.storage.getPtr(key) orelse return error.StorageSlotIsMissing;
+
+        // If the new value is the same as the present, no further action is needed.
+        if (load[0] == new) return .{ slot.previous_or_original_value, load[0], new, load[1] };
+
+        // Append the storage change to the journal.
+        try (try self.getLastJournalEntry()).append(
+            allocator,
+            .{ .StorageChange = .{
+                .address = address,
+                .key = key,
+                .had_value = load[0],
+            } },
+        );
+
+        // Update the present value of the storage slot.
+        slot.present_value = new;
+
+        // Return the original, present, new values, and the 'is_cold' flag.
+        return .{ slot.previous_or_original_value, load[0], new, load[1] };
+    }
+
     /// Frees the resources owned by this instance.
     pub fn deinit(self: *Self) void {
         self.state.deinit();
@@ -508,6 +560,12 @@ pub const JournaledState = struct {
         self.logs.deinit();
         self.journal.deinit();
         self.precompile_addresses.deinit();
+    }
+
+    pub fn deinitJournal(self: *Self, allocator: Allocator) void {
+        for (self.journal.items) |*v| {
+            v.deinit(allocator);
+        }
     }
 };
 
@@ -1322,4 +1380,88 @@ test "JournaledState: sload should load storage slot and return slot value and t
 
     // Ensure that the actual journal entry matches the expected journal entry.
     try expectEqualSlices(JournalEntry, &expected_journal, journal_state.journal.items[0].items);
+
+    // Get the account at the specified address.
+    const account = (try journal_state.getAccount(address));
+    defer account.deinit();
+
+    // Ensure that the retrieved account's storage at key 10 matches the expected StorageSlot.
+    try expectEqual(
+        StorageSlot{
+            .previous_or_original_value = 0,
+            .present_value = 0,
+        },
+        account.storage.get(10).?,
+    );
+}
+
+test "JournaledState: sstore should store a storage slot value and return a tuple" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Initialize an empty database.
+    const db = Database.initEmpty();
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+
+    // Append the zero-filled address to the precompile addresses ArrayList.
+    try precompile_addresses.append(address);
+
+    // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
+    var journal_state = try JournaledState.init(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Put a new 'not-existing' account into the state at the given address.
+    try journal_state.state.put(address, try Account.newNotExisting(std.testing.allocator));
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(std.testing.allocator, .{ .AccountTouched = .{ .address = address } });
+
+    // Append the journal entry to the journal state's journal.
+    try journal_state.journal.append(journal_entry);
+
+    // Store the value '111' in the storage slot using the 'sstore' function.
+    const res = try journal_state.sstore(std.testing.allocator, address, 10, 111, db);
+
+    // Retrieve the account pointer for the given address and defer its deinitialization.
+    const account = (try journal_state.getAccount(address));
+    defer account.deinit();
+
+    // Ensure that the expected tuple is returned from the 'sstore' function.
+    try expectEqual(
+        @as(
+            std.meta.Tuple(&.{ u256, u256, u256, bool }),
+            .{ 0, 0, 111, true },
+        ),
+        res,
+    );
+
+    // Define the expected journal entries after the storage change.
+    const expected_journal = [_]JournalEntry{
+        .{ .AccountTouched = .{ .address = [_]u8{0x00} ** 20 } },
+        .{ .StorageChange = .{ .address = address, .key = 10, .had_value = null } },
+        .{ .StorageChange = .{ .address = address, .key = 10, .had_value = 0 } },
+    };
+
+    // Ensure that the actual journal entry matches the expected journal entry.
+    try expectEqualSlices(JournalEntry, &expected_journal, journal_state.journal.items[0].items);
+
+    // Ensure that the storage slot value has been updated as expected.
+    try expectEqual(
+        StorageSlot{
+            .previous_or_original_value = 0,
+            .present_value = 111,
+        },
+        account.storage.get(10).?,
+    );
 }
