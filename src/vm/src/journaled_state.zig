@@ -244,6 +244,111 @@ pub const JournaledState = struct {
         return account.info.nonce;
     }
 
+    /// Reverts all changes made in the given journal entries within a blockchain state and transient storage.
+    ///
+    /// This function iterates through the journal entries in reverse order and reverts the changes made
+    /// to the blockchain state and transient storage, undoing operations like account loading, touching, destruction,
+    /// balance transfer, nonce change, account creation, storage change, transient storage change, and code change.
+    ///
+    /// # Arguments
+    ///
+    /// - `state`: A pointer to the blockchain state.
+    /// - `transient_storage`: A pointer to the transient storage.
+    /// - `journal_entries`: An unmanaged ArrayList of JournalEntry instances representing the recorded changes.
+    /// - `is_spurious_dragon_enabled`: A boolean flag indicating whether a specific condition is enabled.
+    ///
+    /// # Throws
+    ///
+    /// This function can throw exceptions if there are issues with the state or transient storage access.
+    ///
+    /// # Note
+    ///
+    /// The function takes in the state, transient storage, and a list of journal entries,
+    /// then reverts changes performed in these journal entries on the state and transient storage.
+    ///
+    /// The code uses a while loop to iterate through the journal entries in reverse order and applies
+    /// different actions based on the type of journal entry.
+    pub fn journalRevert(
+        state: *State,
+        transient_storage: *TransientStorage,
+        journal_entries: std.ArrayListUnmanaged(JournalEntry),
+        is_spurious_dragon_enabled: bool,
+    ) !void {
+        var idx = journal_entries.items.len;
+
+        while (idx >= 1) : (idx -= 1) {
+            switch (journal_entries.items[idx - 1]) {
+                // Reverts changes related to loading an account.
+                .AccountLoaded => |account| {
+                    _ = state.remove(account.address);
+                },
+                // Reverts changes related to touching an account.
+                .AccountTouched => |account| {
+                    if (is_spurious_dragon_enabled and std.mem.eql(
+                        u8,
+                        &account.address,
+                        &Constants.PRECOMPILE3.bytes,
+                    )) {
+                        continue;
+                    }
+                    state.getPtr(account.address).?.unmarkTouch();
+                },
+                // Reverts changes related to destroying an account.
+                .AccountDestroyed => |account| {
+                    const acc = state.getPtr(account.address).?;
+
+                    if (account.was_destroyed) acc.markSelfdestruct() else acc.unmarkSelfdestruct();
+
+                    acc.info.balance += account.had_balance;
+
+                    if (!std.mem.eql(
+                        u8,
+                        &account.address,
+                        &account.target,
+                    )) {
+                        state.getPtr(account.target).?.info.balance -= account.had_balance;
+                    }
+                },
+                // Reverts changes related to balance transfer.
+                .BalanceTransfer => |transfer| {
+                    state.getPtr(transfer.from).?.info.balance += transfer.balance;
+                    state.getPtr(transfer.to).?.info.balance -= transfer.balance;
+                },
+                // Reverts changes related to nonce change.
+                .NonceChange => |change| {
+                    state.getPtr(change.address).?.info.nonce -= 1;
+                },
+                // Reverts changes related to account creation.
+                .AccountCreated => |account| {
+                    const acc = state.getPtr(account.address).?;
+                    acc.unmarkCreated();
+                    acc.info.nonce = 0;
+                },
+                // Reverts changes related to storage.
+                .StorageChange => |change| {
+                    var storage = state.getPtr(change.address).?.storage;
+                    if (change.had_value) |v|
+                        storage.getPtr(change.key).?.present_value = v
+                    else
+                        _ = storage.remove(change.key);
+                },
+                // Reverts changes related to transient storage.
+                .TransientStorageChange => |ts| {
+                    if (ts.had_value == 0)
+                        _ = transient_storage.remove(.{ ts.address, ts.key })
+                    else
+                        try transient_storage.put(.{ ts.address, ts.key }, ts.had_value);
+                },
+                // Reverts changes related to code change.
+                .CodeChange => |code| {
+                    const acc = state.getPtr(code.address).?;
+                    acc.info.code_hash = Constants.KECCAK_EMPTY;
+                    acc.info.code = null;
+                },
+            }
+        }
+    }
+
     /// Creates a checkpoint in the journal to track state for potential reversion.
     /// Increases the depth and appends an empty journal entry.
     /// Returns a `JournalCheckpoint` representing log and journal indices at this checkpoint.
@@ -1644,4 +1749,45 @@ test "JournaledState: sstore should store a storage slot value and return a tupl
         },
         account.storage.get(10).?,
     );
+}
+
+test "JournaledState: journalRevert for AccountLoaded" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+
+    // Append the zero-filled address to the precompile addresses ArrayList.
+    try precompile_addresses.append(address);
+
+    // Create a new JournaledState instance for testing with a specific arrow type and precompile addresses.
+    var journal_state = try JournaledState.init(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Put a new 'not-existing' account into the state at the given address.
+    try journal_state.state.put(address, try Account.newNotExisting(std.testing.allocator));
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(std.testing.allocator, .{ .AccountLoaded = .{ .address = address } });
+
+    // Invoke the `journalRevert` function to revert the changes made by the journal entry.
+    try JournaledState.journalRevert(
+        &journal_state.state, // Blockchain state pointer.
+        &journal_state.transient_storage, // Transient storage pointer.
+        journal_entry, // Journal entry containing the AccountLoaded event.
+        false, // Flag indicating Spurious Dragon is disabled.
+    );
+
+    // Assert that the state does not contain the previously added address after the revert operation.
+    try expect(!journal_state.state.contains(address));
 }
