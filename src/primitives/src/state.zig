@@ -59,6 +59,7 @@ pub const Account = struct {
     /// storage cache
     // Account status flags.
     storage: std.AutoHashMap(u256, StorageSlot),
+    /// Account status
     status: AccountStatus,
 
     /// Mark account as self destructed.
@@ -139,23 +140,54 @@ pub const Account = struct {
     }
 };
 
+/// Represents the status of an account within the system.
+///
+/// It encompasses various states and actions related to account lifecycle.
 pub const AccountStatus = struct {
     const Self = @This();
 
     /// When account is loaded but not touched or interacted with.
     /// This is the default state.
     Loaded: bool,
-    /// When account is newly created we will not access database
-    /// to fetch storage values
+    /// Represents the status indicating that the account has been newly created.
+    ///
+    /// When creating an account, a random private key comprising 64 hexadecimal characters is typically generated.
+    ///
+    /// This private key, encrypted with a password, is used to derive the public key via the Elliptic Curve Digital Signature Algorithm (ECDSA).
+    ///
+    /// The public address associated with the account is obtained by taking the last 20 bytes of the Keccak-256 hash of the public key and prefixing it with '0x'.
+    ///
+    /// Example:
+    /// ```
+    /// ffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd036415f
+    /// ```
     Created: bool,
-    /// If account is marked for self destruction.
+    /// Represents if the account underwent self-destruction, utilizing the 'Selfdestruct' feature deprecated during Ethereum's upgrade as per EIP-6049.
+    ///
+    /// 'Selfdestruct' terminated contracts, removed their bytecode from the blockchain, and transferred funds.
+    ///
+    /// Developers used it for security upgrades despite limitations in recovering certain tokens.
+    ///
+    ///  The 'SelfDestructed' boolean in this struct marks the account's termination.
     SelfDestructed: bool,
-    /// Only when account is marked as touched we will save it to database.
+    /// An account is considered 'touched' when it is involved in any potentially state-changing operation.
+    /// This includes, but is not limited to, being the recipient of a transfer of zero value.
+    ///
+    /// When an account is marked as 'touched', it will be saved to the database to reflect the changes made.
     Touched: bool,
-    /// used only for pre spurious dragon hardforks where existing and empty were two separate states.
+    /// Used only for pre spurious dragon hardforks where existing and empty were two separate states.
+    ///
     /// it became same state after EIP-161: State trie clearing
     LoadedAsNotExisting: bool,
 
+    /// Initializes an account status struct with default values.
+    ///
+    /// Returns a struct representing the initial state of an account, marking it as loaded,
+    /// not created, not self-destructed, untouched, and not loaded as non-existing.
+    ///
+    /// # Returns
+    ///
+    /// A struct indicating the initial state of an account.
     pub fn init() Self {
         return .{
             .Loaded = true,
@@ -166,8 +198,24 @@ pub const AccountStatus = struct {
         };
     }
 
+    /// Compares two account status structs for equality.
+    ///
+    /// Checks if the properties of two account status structs are equal.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - A pointer to the first account status struct.
+    /// * `other_account` - Another account status struct to compare with.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if both structs have the same property values, otherwise `false`.
     pub fn eql(self: *const Self, other_account: Self) bool {
-        return self.Loaded == other_account.Loaded and self.Created == other_account.Created and self.SelfDestructed == other_account.SelfDestructed and self.Touched == other_account.Touched and self.LoadedAsNotExisting == other_account.LoadedAsNotExisting;
+        return self.Loaded == other_account.Loaded and
+            self.Created == other_account.Created and
+            self.SelfDestructed == other_account.SelfDestructed and
+            self.Touched == other_account.Touched and
+            self.LoadedAsNotExisting == other_account.LoadedAsNotExisting;
     }
 };
 
