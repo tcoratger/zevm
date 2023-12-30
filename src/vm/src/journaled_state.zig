@@ -383,6 +383,48 @@ pub const JournaledState = struct {
         self.depth -= 1;
     }
 
+    /// Reverts changes in the blockchain state and transient storage to a previously created checkpoint.
+    ///
+    /// This function decreases the depth of the journal state and iterates through journal entries
+    /// after the specified checkpoint, reverting changes made to the state and transient storage
+    /// using the `journalRevert` function. It also trims logs and journal entries beyond the checkpoint.
+    ///
+    /// # Arguments
+    ///
+    /// - `self`: A pointer to the current state.
+    /// - `checkpoint`: A JournalCheckpoint representing the checkpoint to which the state needs to be reverted.
+    ///
+    /// # Throws
+    ///
+    /// Throws exceptions if there are issues while reverting changes or resizing logs and journal entries.
+    pub fn checkpointRevert(self: *Self, checkpoint: JournalCheckpoint) !void {
+        // Retrieve boolean flag indicating if Spurious Dragon is enabled.
+        const is_spurious_dragon_enabled = SpecId.enabled(self.spec, .SPURIOUS_DRAGON);
+
+        // Decrease the depth of the journal state after a checkpoint is committed.
+        self.depth -= 1;
+
+        // Counter to track the number of journal entries to revert.
+        var count: usize = 0;
+
+        // Iterate through the journal entries after the checkpoint to revert changes.
+        while (count < (self.journal.items.len - checkpoint.journal_index)) : (count += 1) {
+            // Revert changes made in the journal entry using journalRevert function.
+            try Self.journalRevert(
+                &self.state, // Pointer to blockchain state.
+                &self.transient_storage, // Pointer to transient storage.
+                self.journal.items[self.journal.items.len - 1 - count], // Journal entry to revert.
+                is_spurious_dragon_enabled, // Flag indicating Spurious Dragon condition.
+            );
+        }
+
+        // Resize logs to the checkpoint log index.
+        try self.logs.resize(checkpoint.log_index);
+
+        // Resize journal entries to the checkpoint journal index.
+        try self.journal.resize(checkpoint.journal_index);
+    }
+
     /// Retrieves a value from the transient storage associated with the provided address and key.
     ///
     /// EIP-1153 introduces transient storage opcodes, enabling manipulation of state that behaves
@@ -1802,4 +1844,47 @@ test "JournaledState: journalRevert for AccountLoaded" {
     try expect(!journal_state.state.contains(address));
 
     // TODO: Add a larger set of unit tests to cover all `JournalEntry` configurations
+}
+
+test "JournaledState: checkpointRevert should revert changes to a previously created checkpoint" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Create a new JournaledState instance for testing with specific configurations.
+    var journal_state = try JournaledState.init(std.testing.allocator, .ARROW_GLACIER, std.ArrayList([20]u8).init(std.testing.allocator));
+    defer journal_state.deinit(); // Defer the deinitialization of the journal state.
+
+    // Appends an account touch event to the log multiple times.
+    try journal_state.logs.appendNTimes(.{ .address = address }, 10);
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry.
+    try journal_entry.append(std.testing.allocator, .{ .AccountTouched = .{ .address = address } });
+
+    // Appends the journal entry to the journal state's journal multiple times.
+    try journal_state.journal.appendNTimes(journal_entry, 5);
+
+    // Ensure that the depth of the journal state is initially 0.
+    try expect(journal_state.depth == 0); // Assert the initial depth state.
+
+    // Create a checkpoint in the journal state.
+    const checkpoint = try journal_state.addCheckpoint(); // Create a checkpoint.
+
+    // Assert the depth after creating the checkpoint.
+    try expect(journal_state.depth == 1);
+    // Assert the length of journal items after creating the checkpoint.
+    try expect(journal_state.journal.items.len == 6);
+
+    // Revert changes using the checkpoint.
+    try journal_state.checkpointRevert(checkpoint);
+
+    // Assert the depth after reverting the checkpoint.
+    try expect(journal_state.depth == 0);
+    // Assert the length of log items after reverting the checkpoint.
+    try expect(journal_state.logs.items.len == 10);
+    // Assert the length of journal items after reverting the checkpoint.
+    try expect(journal_state.journal.items.len == 5);
 }
