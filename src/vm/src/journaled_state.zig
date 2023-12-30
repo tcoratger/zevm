@@ -284,23 +284,27 @@ pub const JournaledState = struct {
                 },
                 // Reverts changes related to touching an account.
                 .AccountTouched => |account| {
+                    // Specific condition check for spurious dragon.
                     if (is_spurious_dragon_enabled and std.mem.eql(
                         u8,
                         &account.address,
                         &Constants.PRECOMPILE3.bytes,
                     )) {
-                        continue;
+                        continue; // Skips further action if condition is met.
                     }
                     state.getPtr(account.address).?.unmarkTouch();
                 },
                 // Reverts changes related to destroying an account.
                 .AccountDestroyed => |account| {
+                    // Obtains account and adjusts based on previous destruction status.
                     const acc = state.getPtr(account.address).?;
 
                     if (account.was_destroyed) acc.markSelfdestruct() else acc.unmarkSelfdestruct();
 
+                    // Adjusts balance changes after destruction.
                     acc.info.balance += account.had_balance;
 
+                    // Verify that address is not the target before decreasing target balance
                     if (!std.mem.eql(
                         u8,
                         &account.address,
@@ -311,21 +315,25 @@ pub const JournaledState = struct {
                 },
                 // Reverts changes related to balance transfer.
                 .BalanceTransfer => |transfer| {
+                    // Reverts the transferred balance.
                     state.getPtr(transfer.from).?.info.balance += transfer.balance;
                     state.getPtr(transfer.to).?.info.balance -= transfer.balance;
                 },
                 // Reverts changes related to nonce change.
                 .NonceChange => |change| {
+                    // Reverts the nonce change.
                     state.getPtr(change.address).?.info.nonce -= 1;
                 },
                 // Reverts changes related to account creation.
                 .AccountCreated => |account| {
+                    // Reverts account creation flags and nonce.
                     const acc = state.getPtr(account.address).?;
                     acc.unmarkCreated();
                     acc.info.nonce = 0;
                 },
                 // Reverts changes related to storage.
                 .StorageChange => |change| {
+                    // Reverts changes in storage.
                     var storage = state.getPtr(change.address).?.storage;
                     if (change.had_value) |v|
                         storage.getPtr(change.key).?.present_value = v
@@ -334,6 +342,7 @@ pub const JournaledState = struct {
                 },
                 // Reverts changes related to transient storage.
                 .TransientStorageChange => |ts| {
+                    // Reverts changes in transient storage.
                     if (ts.had_value == 0)
                         _ = transient_storage.remove(.{ ts.address, ts.key })
                     else
@@ -341,6 +350,7 @@ pub const JournaledState = struct {
                 },
                 // Reverts changes related to code change.
                 .CodeChange => |code| {
+                    // Reverts code change by nullifying code and hash.
                     const acc = state.getPtr(code.address).?;
                     acc.info.code_hash = Constants.KECCAK_EMPTY;
                     acc.info.code = null;
