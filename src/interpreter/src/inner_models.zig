@@ -44,15 +44,14 @@ pub const CreateInputs = struct {
         nonce: u64,
         allocator: std.mem.Allocator,
     ) ![20]u8 {
-        const end: usize = 20;
         return switch (self.scheme) {
             .Create => (try primitives.Utils.createAddress(
-                primitives.B160.fromSlice(self.caller[0..end]),
+                primitives.B160.fromSlice(&self.caller),
                 nonce,
                 allocator,
             )).bytes,
             .Create2 => |*scheme| (try primitives.Utils.create2Address(
-                primitives.B160.fromSlice(self.caller[0..]),
+                primitives.B160.fromSlice(&self.caller),
                 primitives.B256.fromSlice(self.init_code),
                 scheme.*.salt,
                 allocator,
@@ -136,9 +135,13 @@ pub const Transfer = struct {
 
 /// Result of a call that resulted in a self destruct.
 pub const SelfDestructResult = struct {
+    /// Indicates if the initiating account had a non-zero balance before the self-destruct action.
     had_value: bool,
+    /// Indicates if the target account exists before the self-destruct action.
     target_exists: bool,
+    /// Indicates if the target account exists but is inactive (cold) before the self-destruct action.
     is_cold: bool,
+    /// Indicates if the initiating account was previously self-destructed.
     previously_destroyed: bool,
 };
 

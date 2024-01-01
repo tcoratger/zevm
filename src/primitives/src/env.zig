@@ -167,13 +167,78 @@ pub const BlockEnv = struct {
     }
 };
 
-/// Create scheme
+/// Create scheme for contract deployment within the Ethereum Virtual Machine (EVM).
+///
+/// The `CreateScheme` union enum encapsulates different contract creation schemes utilized within the Ethereum network.
+/// It provides a mechanism to delineate between distinct methods of generating contract addresses based on specific
+/// opcodes or proposals within the Ethereum ecosystem.
+///
+/// This union enum currently encompasses two major contract creation schemes: `Create` and `Create2`.
+///
+/// - `Create`: Represents the conventional contract creation scheme within the EVM, employing the `CREATE` opcode (0xf0).
+///   Contract addresses are derived using the sender's address and nonce, providing deterministic but non-predictable
+///   address derivation. Each new contract creation by the same sender increments the nonce, ensuring unique addresses
+///   for each contract deployment.
+///
+/// - `Create2`: Embodies the creation scheme introduced by Ethereum Improvement Proposal 1014 (EIP-1014) known as
+///   `CREATE2`. This scheme utilizes the `CREATE2` opcode (0xf5) and involves a salted address derivation mechanism
+///   for deploying contracts on-chain. It enables interactions with addresses that don't exist on-chain yet, ensuring
+///   deterministic and predictable address derivation through the use of a specified salt value.
+///
+/// The documentation for each instance within this union enum provides detailed information on the specific contract
+/// creation methodology and the associated references for further understanding.
+///
+/// References:
+/// - Ethereum Yellow Paper: https://ethereum.github.io/yellowpaper/paper.pdf
+/// - EIP-1014: https://eips.ethereum.org/EIPS/eip-1014
 pub const CreateScheme = union(enum) {
     /// Legacy create scheme of `CREATE`.
+    ///
+    /// The `Create` instance represents the traditional contract creation scheme within the Ethereum Virtual Machine (EVM),
+    /// where the contract address is derived using the sender's address and nonce, via the `CREATE` opcode (0xf0).
+    ///
+    /// This method generates contract addresses by hashing the sender's address and nonce, providing a deterministic but
+    /// non-predictable address derivation. Each new contract creation by the same sender increments the nonce, ensuring
+    /// unique addresses for each contract deployment.
+    ///
+    /// Reference:
+    /// - Ethereum Yellow Paper: https://ethereum.github.io/yellowpaper/paper.pdf
     Create,
-    /// Create scheme of `CREATE2`.
+    /// Create scheme for the `CREATE2` opcode based on EIP-1014 specifications.
+    ///
+    /// The `Create2` instance represents the creation scheme introduced by the Ethereum
+    /// Improvement Proposal 1014 (EIP-1014) known as `CREATE2`.
+    ///
+    /// EIP-1014 introduces a new opcode, `CREATE2` at `0xf5`, extending the functionality
+    /// of contract creation within the Ethereum Virtual Machine (EVM). This opcode utilizes
+    /// a salted address derivation mechanism for deploying contracts on-chain.
+    ///
+    /// The `Create2` instance encapsulates this scheme, specifically handling the derivation
+    /// of contract addresses using a salt value. The `salt` field within `Create2` is employed
+    /// during the contract address calculation process as specified in EIP-1014.
+    ///
+    /// This enhancement in contract creation allows interactions with addresses that don't exist
+    /// on-chain yet, providing deterministic address derivation. It is pivotal for use cases like
+    /// state channels, enabling counterfactual interactions with contracts, even before their
+    /// actual existence on the blockchain.
+    ///
+    /// Reference:
+    /// - EIP-1014: https://eips.ethereum.org/EIPS/eip-1014
+    ///
+    /// Please cite EIP-1014 as:
+    /// Vitalik Buterin (@vbuterin), "EIP-1014: Skinny CREATE2," Ethereum Improvement Proposals,
+    /// no. 1014, April 2018. [Online serial]. Available: https://eips.ethereum.org/EIPS/eip-1014
     Create2: struct {
-        /// Salt.
+        /// Salt used for contract address derivation based on EIP-1014.
+        ///
+        /// In accordance with EIP-1014, this salt is used in the CREATE2 opcode
+        /// to derive the contract address from the `init_code`, sender's address,
+        /// and the specified salt value.
+        ///
+        /// This salt allows interactions to occur with addresses that don't yet
+        /// exist on-chain, ensuring deterministic and predictable address derivation.
+        ///
+        /// Reference: https://eips.ethereum.org/EIPS/eip-1014
         salt: u256,
     },
 };
