@@ -19,11 +19,11 @@ pub const Env = struct {
     /// Ethereum Transaction Environment.
     tx: TxEnv,
 
-    pub fn default(allocator: std.mem.Allocator) !Self {
+    pub fn init(allocator: std.mem.Allocator) !Self {
         return .{
-            .cfg = CfgEnv.default(),
-            .block = BlockEnv.default(),
-            .tx = try TxEnv.default(allocator),
+            .cfg = CfgEnv.init(),
+            .block = BlockEnv.init(),
+            .tx = try TxEnv.init(allocator),
         };
     }
 
@@ -32,9 +32,9 @@ pub const Env = struct {
         if (self.tx.gas_priority_fee) |gas_priority_fee| {
             const basefee_plus_gas_priority_fee = self.block.base_fee + gas_priority_fee;
 
-            return switch (self.tx.gas_price < basefee_plus_gas_priority_fee) {
-                true => self.tx.gas_price,
-                false => basefee_plus_gas_priority_fee,
+            return switch (std.math.order(self.tx.gas_price, basefee_plus_gas_priority_fee)) {
+                .lt => self.tx.gas_price,
+                else => basefee_plus_gas_priority_fee,
             };
         }
 
@@ -46,11 +46,8 @@ pub const Env = struct {
     /// Returns `None` if `Cancun` is not enabled. This is enforced in [`Env::validate_block_env`].
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
-    pub fn calc_data_fee(self: Self) ?u64 {
-        // const blob_gas_price = self.block.get_blob_gasprice();
-        // return if (blob_gas_price == null) null else blob_gas_price * self.tx.get_total_blob_gas();
-
-        return self.block.get_blob_gasprice().? * self.tx.get_total_blob_gas();
+    pub fn calcDataFee(self: Self) ?u64 {
+        return self.block.getBlobGasprice().? * self.tx.get_total_blob_gas();
     }
 
     /// Frees all associated memory.
@@ -74,7 +71,8 @@ pub const BlobExcessGasAndPrice = struct {
     }
 
     pub fn eql(self: Self, other: Self) bool {
-        return self.excess_blob_gas == other.excess_blob_gas and self.excess_blob_gasprice == other.excess_blob_gasprice;
+        return self.excess_blob_gas == other.excess_blob_gas and
+            self.excess_blob_gasprice == other.excess_blob_gasprice;
     }
 };
 
@@ -126,7 +124,7 @@ pub const BlockEnv = struct {
     blob_excess_gas_and_price: ?BlobExcessGasAndPrice,
 
     /// Returns the "default value" for each type.
-    pub fn default() Self {
+    pub fn init() Self {
         return .{
             .number = 0,
             .coinbase = bits.B160.from(0),
@@ -141,7 +139,7 @@ pub const BlockEnv = struct {
 
     /// Takes `blob_excess_gas` saves it inside env
     /// and calculates `blob_fee` with [`BlobGasAndFee`].
-    pub fn set_blob_excess_gas_and_price(self: *Self, excess_blob_gas: u64) void {
+    pub fn setBlobExcessGasAndPrice(self: *Self, excess_blob_gas: u64) void {
         self.blob_excess_gas_and_price = .{
             .excess_blob_gas = excess_blob_gas,
             .excess_blob_gasprice = 0,
@@ -153,7 +151,7 @@ pub const BlockEnv = struct {
     /// Returns `None` if `Cancun` is not enabled. This is enforced in [`Env::validate_block_env`].
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
-    pub fn get_blob_gasprice(self: Self) ?u64 {
+    pub fn getBlobGasprice(self: Self) ?u64 {
         return self.blob_excess_gas_and_price.?.excess_blob_gasprice;
     }
 
@@ -162,7 +160,7 @@ pub const BlockEnv = struct {
     /// Returns `None` if `Cancun` is not enabled. This is enforced in [`Env::validate_block_env`].
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
-    pub fn get_blob_excess_gas(self: Self) ?u64 {
+    pub fn getBlobExcessGas(self: Self) ?u64 {
         return self.blob_excess_gas_and_price.?.excess_blob_gas;
     }
 };
@@ -369,7 +367,7 @@ pub const TxEnv = struct {
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
     max_fee_per_blob_gas: ?u256,
 
-    pub fn default(allocator: std.mem.Allocator) !Self {
+    pub fn init(allocator: std.mem.Allocator) !Self {
         return .{
             .caller = bits.B160.from(0),
             .gas_limit = constants.Constants.UINT_64_MAX,
@@ -389,7 +387,7 @@ pub const TxEnv = struct {
         };
     }
 
-    /// See [EIP-4844] and [`Env::calc_data_fee`].
+    /// See [EIP-4844] and [`Env::calcDataFee`].
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
     pub fn get_total_blob_gas(self: *Self) u64 {
@@ -414,7 +412,7 @@ pub const AnalysisKind = enum {
     /// Perform bytecode analysis.
     Analyze,
 
-    pub fn default() Self {
+    pub fn init() Self {
         return .Analyze;
     }
 };
@@ -465,11 +463,11 @@ pub const CfgEnv = struct {
     /// This is useful for testing method calls with zero gas price.
     disable_base_fee: bool,
 
-    pub fn default() Self {
+    pub fn init() Self {
         return .{
             .chain_id = 1,
             .spec_id = .LATEST,
-            .perf_analyze_created_bytecodes = AnalysisKind.default(),
+            .perf_analyze_created_bytecodes = AnalysisKind.init(),
             .limit_contract_code_size = null,
             .disable_coinbase_tip = false,
             .kzg_settings = .Default,
@@ -483,33 +481,33 @@ pub const CfgEnv = struct {
     }
 
     /// Returns `true` if EIP-3607 check is disabled.
-    pub fn is_eip3607_disabled(self: Self) bool {
+    pub fn isEip3607Disabled(self: Self) bool {
         return self.disable_eip3607;
     }
 
     /// Returns `true` if balance checks are disabled.
-    pub fn is_balance_check_disabled(self: Self) bool {
+    pub fn isBalanceCheckDisabled(self: Self) bool {
         self.disable_balance_check;
     }
 
     /// Returns `true` if gas refunds are disabled.
-    pub fn is_gas_refund_disabled(self: Self) bool {
+    pub fn isGasRefundDisabled(self: Self) bool {
         self.disable_gas_refund;
     }
 
     /// Returns `true` if base fee checks for EIP-1559 transactions are disabled.
-    pub fn is_base_fee_check_disabled(self: Self) bool {
+    pub fn isBaseFeeCheckDisabled(self: Self) bool {
         self.disable_base_fee;
     }
 
     /// Returns `true` if block gas limit validation is disabled.
-    pub fn is_block_gas_limit_disabled(self: Self) bool {
+    pub fn isBlockGasLimitDisabled(self: Self) bool {
         return self.disable_block_gas_limit;
     }
 };
 
 test "Block env: Init" {
-    var block_env = BlockEnv.default();
+    var block_env = BlockEnv.init();
 
     try expectEqual(@as(u256, 0), block_env.base_fee);
     try expectEqual(@as(u256, 0), block_env.number);
@@ -524,14 +522,14 @@ test "Block env: Init" {
     try expect(block_env.prev_randao.?.isZero());
 }
 
-test "Block env: set_blob_excess_gas_and_price and get_blob_excess_gas" {
-    var block_env = BlockEnv.default();
+test "Block env: setBlobExcessGasAndPrice and getBlobExcessGas" {
+    var block_env = BlockEnv.init();
 
-    block_env.set_blob_excess_gas_and_price(10);
+    block_env.setBlobExcessGasAndPrice(10);
 
     try expectEqual(@as(u64, 10), block_env.blob_excess_gas_and_price.?.excess_blob_gas);
-    try expectEqual(@as(?u64, 10), block_env.get_blob_excess_gas());
-    try expectEqual(@as(?u64, 0), block_env.get_blob_gasprice());
+    try expectEqual(@as(?u64, 10), block_env.getBlobExcessGas());
+    try expectEqual(@as(?u64, 0), block_env.getBlobGasprice());
 }
 
 test "Block env: new" {
@@ -556,7 +554,7 @@ test "Block env: new" {
 }
 
 test "TxEnv: get_total_blob_gas function" {
-    var default_tx_env = try TxEnv.default(std.testing.allocator);
+    var default_tx_env = try TxEnv.init(std.testing.allocator);
     default_tx_env.deinit();
     try expectEqual(@as(u64, 0), default_tx_env.get_total_blob_gas());
 }
@@ -602,7 +600,7 @@ test "TransactTo: is_create function" {
 }
 
 test "Env: effective_gas_price without gas_priority_fee" {
-    var env_default = try Env.default(std.testing.allocator);
+    var env_default = try Env.init(std.testing.allocator);
     defer env_default.deinit();
     try expectEqual(@as(u256, 0), try Env.effective_gas_price(env_default));
 }
@@ -630,8 +628,8 @@ test "Env: effective_gas_price with gas_priority_fee returning gas_price" {
     try expectEqual(
         @as(u256, 1),
         try Env.effective_gas_price(.{
-            .block = BlockEnv.default(),
-            .cfg = CfgEnv.default(),
+            .block = BlockEnv.init(),
+            .cfg = CfgEnv.init(),
             .tx = tx_env,
         }),
     );
@@ -660,8 +658,8 @@ test "Env: effective_gas_price with gas_priority_fee returning gas_priority_fee 
     try expectEqual(
         @as(u256, 10),
         try Env.effective_gas_price(.{
-            .block = BlockEnv.default(),
-            .cfg = CfgEnv.default(),
+            .block = BlockEnv.init(),
+            .cfg = CfgEnv.init(),
             .tx = tx_env,
         }),
     );
