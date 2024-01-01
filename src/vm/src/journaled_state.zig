@@ -13,6 +13,7 @@ const Constants = @import("../../primitives/primitives.zig").Constants;
 const Utils = @import("../../primitives/primitives.zig").Utils;
 const Database = @import("./db/db.zig").Database;
 const StorageSlot = @import("../../primitives/primitives.zig").StorageSlot;
+const SelfDestructResult = @import("../../interpreter/lib.zig").interpreter.SelfDestructResult;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
@@ -423,6 +424,96 @@ pub const JournaledState = struct {
 
         // Resize journal entries to the checkpoint journal index.
         try self.journal.resize(checkpoint.journal_index);
+    }
+
+    /// Performs a self-destruct action, transferring Ether balance between Ethereum accounts based on Ethereum Improvement Proposal (EIP) 6780 specifications.
+    ///
+    /// This function handles the SELFDESTRUCT opcode behavior changes, ensuring fund transfers and account deletions based on transaction context and Cancun specification status.
+    ///
+    /// Parameters:
+    /// - `self`: Ethereum state instance.
+    /// - `allocator`: Memory allocator for Ziglang.
+    /// - `address`: Address of the Ethereum account initiating the self-destruct.
+    /// - `target`: Address of the Ethereum account receiving the funds or being deleted.
+    /// - `db`: Database instance for Ethereum state information.
+    ///
+    /// Returns a `SelfDestructResult` containing information about the self-destruct action's outcome:
+    /// - `had_value`: Indicates if the initiating account had a non-zero balance before self-destruct.
+    /// - `is_cold`: Indicates if the target account exists but is inactive (cold).
+    /// - `target_exists`: Indicates if the target account exists.
+    /// - `previously_destroyed`: Indicates if the initiating account was previously self-destructed.
+    ///
+    /// References:
+    /// - EIP-6780: https://eips.ethereum.org/EIPS/eip-6780
+    /// - Rust Implementation: Provided Rust implementation for selfdestruct action.
+    pub fn selfDestruct(
+        self: *Self,
+        allocator: Allocator,
+        address: [20]u8,
+        target: [20]u8,
+        db: Database,
+    ) !SelfDestructResult {
+        // Check if the target account exists.
+        const load_account_exist = try self.loadAccountExist(allocator, target, db);
+
+        // Retrieve the initiating account and handle fund transfers or deletions based on SELFDESTRUCT operation.
+        const account = if (!std.mem.eql(u8, &address, &target)) blk: {
+            // Initialize accounts for the initiating and target addresses.
+            const base_account = self.state.getPtr(address).?;
+            const target_account = self.state.getPtr(target).?;
+
+            // Ensure the target account is activated.
+            try Self.touchAccount(
+                allocator,
+                try self.getLastJournalEntry(),
+                target,
+                target_account,
+            );
+
+            // Transfer funds from the initiating to the target account.
+            target_account.info.balance += base_account.info.balance;
+
+            break :blk base_account;
+        } else self.state.getPtr(address).?;
+
+        // Retrieve balance and previous self-destruct status of the initiating account.
+        const balance = account.info.balance;
+        const previously_destroyed = account.isSelfdestructed();
+        const is_cancun_enabled = SpecId.enabled(self.spec, .CANCUN);
+
+        // Define the journal entry based on Cancun specification and account conditions.
+        const journal_entry: ?JournalEntry = if (account.isCreated() or !is_cancun_enabled) blk: {
+            // Mark the account as self-destructed and reset the balance if Cancun is not enabled.
+            account.markSelfdestruct();
+            account.info.balance = 0;
+            break :blk .{ .AccountDestroyed = .{
+                .address = address,
+                .target = target,
+                .was_destroyed = previously_destroyed,
+                .had_balance = balance,
+            } };
+        } else if (!std.mem.eql(u8, &address, &target)) blk: {
+            // Reset balance if the accounts are different (fund transfer case).
+            account.info.balance = 0;
+            break :blk .{ .BalanceTransfer = .{
+                .from = address,
+                .to = target,
+                .balance = balance,
+            } };
+        } else null;
+
+        // Append the journal entry if available.
+        if (journal_entry) |entry| {
+            try (try self.getLastJournalEntry()).append(allocator, entry);
+        }
+
+        // Return the self-destruct result.
+        return .{
+            .had_value = balance != 0,
+            .is_cold = load_account_exist[0],
+            .target_exists = load_account_exist[1],
+            .previously_destroyed = previously_destroyed,
+        };
     }
 
     /// Retrieves a value from the transient storage associated with the provided address and key.
@@ -1887,4 +1978,83 @@ test "JournaledState: checkpointRevert should revert changes to a previously cre
     try expect(journal_state.logs.items.len == 10);
     // Assert the length of journal items after reverting the checkpoint.
     try expect(journal_state.journal.items.len == 5);
+}
+
+test "JournaledState: selfDestruct should perform a selfdestruct action" {
+    // Create a 20-byte address filled with zeros.
+    const address = [_]u8{0x00} ** 20;
+
+    // Create a distinct 20-byte target address filled with ones.
+    const target_address = [_]u8{0x01} ** 20;
+
+    // Initialize an empty database for testing.
+    const db = Database.initEmpty();
+
+    // Initialize an ArrayList for precompile addresses and defer its deinitialization.
+    var precompile_addresses = std.ArrayList([20]u8).init(std.testing.allocator);
+    defer precompile_addresses.deinit();
+    try precompile_addresses.append(address);
+
+    // Create a new JournaledState instance for testing with specific arrow type and precompile addresses.
+    var journal_state = try JournaledState.init(
+        std.testing.allocator,
+        .ARROW_GLACIER,
+        precompile_addresses,
+    );
+    defer journal_state.deinit();
+
+    // Put 'not-existing' accounts into the state at given addresses for testing.
+    try journal_state.state.put(address, try Account.newNotExisting(std.testing.allocator));
+    try journal_state.state.put(target_address, try Account.newNotExisting(std.testing.allocator));
+
+    // Initialize an unmanaged ArrayList for the journal entry and defer its deinitialization.
+    var journal_entry = std.ArrayListUnmanaged(JournalEntry){};
+    defer journal_entry.deinit(std.testing.allocator);
+
+    // Append an account touch event to the journal entry for the initiating address.
+    try journal_entry.append(std.testing.allocator, .{ .AccountTouched = .{ .address = address } });
+
+    // Append the journal entry to the journal state's journal.
+    try journal_state.journal.append(journal_entry);
+
+    // Set a balance of 54 for the initiating account.
+    journal_state.state.getPtr(address).?.info.balance = 54;
+
+    // Verify that the initiating account's balance equals 54.
+    try expect(journal_state.state.getPtr(address).?.info.balance == 54);
+
+    // Perform the self-destruct action.
+    const res = try journal_state.selfDestruct(std.testing.allocator, address, target_address, db);
+
+    // Verify the outcome of the self-destruct action matches the expected result.
+    try expectEqual(
+        SelfDestructResult{
+            .had_value = true,
+            .target_exists = false,
+            .is_cold = false,
+            .previously_destroyed = false,
+        },
+        res,
+    );
+
+    // Verify that the initiating account is marked as self-destructed.
+    try expect(journal_state.state.getPtr(address).?.isSelfdestructed());
+
+    // Verify that the initiating account's balance is now 0 after the self-destruct action.
+    try expect(journal_state.state.getPtr(address).?.info.balance == 0);
+
+    // Define the expected journal entries reflecting the performed actions.
+    const expected_journal = [_]JournalEntry{
+        .{ .AccountTouched = .{ .address = [_]u8{0x00} ** 20 } },
+        .{ .AccountTouched = .{ .address = [_]u8{0x01} ** 20 } },
+        .{ .AccountDestroyed = .{
+            .address = address,
+            .target = target_address,
+            .was_destroyed = false,
+            .had_balance = 54,
+        } },
+    };
+
+    // Verify that the recorded journal matches the expected journal entries.
+    try expectEqualSlices(JournalEntry, &expected_journal, journal_state.journal.items[0].items);
 }
