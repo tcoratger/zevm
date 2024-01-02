@@ -1,9 +1,14 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const StandardPrecompileFn = @import("../primitives/primitives.zig").StandardPrecompileFn;
+const EnvPrecompileFn = @import("../primitives/primitives.zig").EnvPrecompileFn;
+const SpecIdPrimitives = @import("../primitives/primitives.zig").SpecId;
+
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualSlices = std.testing.expectEqualSlices;
+const expectFmt = std.testing.expectFmt;
 
 /// Calculates the linear cost based on length, base, and word size.
 ///
@@ -22,6 +27,93 @@ pub fn calcLinearCostU32(len: usize, base: u64, word: u64) u64 {
         @intCast(len),
     ) + 32 - 1) / 32 * word + base;
 }
+
+/// Represents a union of standard and environment precompile functions.
+pub const Precompile = union(enum) {
+    /// Reference to Self.
+    const Self = @This();
+
+    /// Function pointer to a standard precompile function.
+    Standard: StandardPrecompileFn,
+    /// Function pointer to an environment precompile function.
+    Env: EnvPrecompileFn,
+
+    /// Formats the Precompile union for display.
+    ///
+    /// # Arguments
+    /// - `self`: Reference to the Precompile union.
+    ///
+    /// # Returns
+    /// A `std.fmt.Formatter` containing the formatted representation of the Precompile union.
+    pub fn fmt(self: *Self) std.fmt.Formatter([]const u8) {
+        return switch (self.*) {
+            // Formats 'Standard' variant as "Standard".
+            .Standard => .{ .data = "Standard" },
+            // Formats 'Env' variant as "Env".
+            .Env => .{ .data = "Env" },
+        };
+    }
+};
+
+/// Represents a structure associating an address with a precompile function.
+pub const PrecompileWithAddress = struct {
+    /// Reference to Self.
+    const Self = @This();
+
+    /// The address associated with the precompile.
+    address: [20]u8,
+    /// The precompile function associated with the address.
+    precompile: Precompile,
+
+    /// Initializes a PrecompileWithAddress instance.
+    ///
+    /// # Arguments
+    /// - `address`: The address associated with the precompile.
+    /// - `precompile`: The precompile function.
+    ///
+    /// # Returns
+    /// A new PrecompileWithAddress instance.
+    pub fn init(address: [20]u8, precompile: Precompile) Self {
+        return .{ .address = address, .precompile = precompile };
+    }
+};
+
+/// Enum representing Ethereum specification IDs.
+pub const SpecId = enum(u8) {
+    /// Reference to Self.
+    const Self = @This();
+
+    /// Ethereum specification ID for Homestead.
+    HOMESTEAD,
+    /// Ethereum specification ID for Byzantium.
+    BYZANTIUM,
+    /// Ethereum specification ID for Istanbul.
+    ISTANBUL,
+    /// Ethereum specification ID for Berlin.
+    BERLIN,
+    /// Ethereum specification ID for Cancun.
+    CANCUN,
+    /// Latest Ethereum specification ID.
+    LATEST,
+
+    /// Initializes a SpecId from a SpecIdPrimitives enum.
+    ///
+    /// # Arguments
+    /// - `spec_id`: SpecIdPrimitives enum value to initialize from.
+    ///
+    /// # Returns
+    /// A SpecId corresponding to the given SpecIdPrimitives enum.
+    pub fn initFromSpecId(spec_id: SpecIdPrimitives) Self {
+        return switch (spec_id) {
+            .FRONTIER, .FRONTIER_THAWING, .HOMESTEAD, .DAO_FORK, .TANGERINE, .SPURIOUS_DRAGON => .HOMESTEAD,
+            .BYZANTIUM | .CONSTANTINOPLE | .PETERSBURG => .BYZANTIUM,
+            .ISTANBUL | .MUIR_GLACIER => .ISTANBUL,
+            .BERLIN | .LONDON | .ARROW_GLACIER | .GRAY_GLACIER | .MERGE | .SHANGHAI => .BERLIN,
+            .CANCUN => .CANCUN,
+            .LATEST => .LATEST,
+        };
+    }
+};
 
 /// Represents the output structure of a precompile operation.
 pub const PrecompileOutput = struct {
