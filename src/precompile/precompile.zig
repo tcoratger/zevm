@@ -171,6 +171,43 @@ pub const Log = struct {
     }
 };
 
+/// Converts a u64 value to a 20-byte address representation.
+///
+/// # Arguments
+/// - `x`: The u64 value to convert to an address.
+///
+/// # Returns
+/// A 20-byte address representation of the u64 value.
+pub fn u64ToAddress(x: u64) [20]u8 {
+    // Create an uninitialized buffer of 8 bytes.
+    var buf: [8]u8 = undefined;
+    // Write the u64 value into the buffer in big-endian byte order.
+    std.mem.writeInt(u64, &buf, x, .big);
+    // Create a 20-byte address by padding the lower 8 bytes of buf with zeros.
+    return [_]u8{
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        buf[0],
+        buf[1],
+        buf[2],
+        buf[3],
+        buf[4],
+        buf[5],
+        buf[6],
+        buf[7],
+    };
+}
+
 test "calcLinearCostU32: should calculate the linear cost based on length, base, and word size" {
     try expectEqual(@as(u64, 88), calcLinearCostU32(10, 64, 24));
     try expectEqual(@as(u64, 0), calcLinearCostU32(0, 0, 0));
@@ -200,5 +237,26 @@ test "PrecompileOutput: initWithoutLogs should initialize a PrecompileOutput wit
         u8,
         &[_]u8{ 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 },
         res.output.items,
+    );
+}
+
+test "u64ToAddress: should create an address from a u64" {
+    // Testing the u64ToAddress function by verifying the generated address for the value 134.
+    try expectEqualSlices(
+        u8,
+        &[_]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 134 },
+        &u64ToAddress(134),
+    );
+    // Testing the u64ToAddress function by verifying the generated address for the value 535353534.
+    try expectEqualSlices(
+        u8,
+        &[_]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, 232, 216, 190 },
+        &u64ToAddress(535353534),
+    );
+    // Testing the u64ToAddress function by verifying the generated address for the maximum u64 value.
+    try expectEqualSlices(
+        u8,
+        &[_]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255 },
+        &u64ToAddress(std.math.maxInt(u64)),
     );
 }
