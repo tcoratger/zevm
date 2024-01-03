@@ -173,6 +173,9 @@ pub const Log = struct {
 
 /// Converts a u64 value to a 20-byte address representation.
 ///
+/// It creates an address by encoding the u64 value into a big-endian byte representation.
+/// The resulting address is padded with zeros to fill 20 bytes.
+///
 /// # Arguments
 /// - `x`: The u64 value to convert to an address.
 ///
