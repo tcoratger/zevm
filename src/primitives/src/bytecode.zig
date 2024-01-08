@@ -77,9 +77,14 @@ pub const BytecodeState = union(enum) {
     }
 };
 
+/// Represents bytecode information including its state.
 pub const Bytecode = struct {
+    /// Represents the `Bytecode` struct itself.
     const Self = @This();
+
+    /// Stores the bytecode as a slice of unsigned 8-bit integers.
     bytecode: []u8,
+    /// Represents the state of the bytecode.
     state: BytecodeState,
 
     /// Creates a new `Bytecode` with exactly one STOP opcode.
@@ -159,6 +164,7 @@ pub const Bytecode = struct {
         };
     }
 
+    /// Converts raw bytecode into checked bytecode.
     pub fn toCheck(self: Self, allocator: std.mem.Allocator) !Self {
         return switch (self.state) {
             .Raw => {
@@ -175,26 +181,22 @@ pub const Bytecode = struct {
         };
     }
 
+    /// Checks if two `Bytecode` instances are equal.
     pub fn eql(self: Self, other: Self) bool {
         return std.mem.eql(u8, self.bytecode, other.bytecode) and switch (self.state) {
             .Raw => other.state == .Raw,
-            .Checked => {
-                if (other.state == .Checked) {
-                    return self.state.Checked.len == other.state.Checked.len;
-                } else {
-                    return false;
-                }
-            },
-            .Analysed => {
-                if (other.state == .Analysed) {
-                    return self.state.Analysed.len == other.state.Analysed.len;
-                } else {
-                    return false;
-                }
-            },
+            .Checked => if (other.state == .Checked)
+                self.state.Checked.len == other.state.Checked.len
+            else
+                false,
+            .Analysed => if (other.state == .Analysed)
+                return self.state.Analysed.len == other.state.Analysed.len
+            else
+                false,
         };
     }
 
+    /// Deinitializes the `Bytecode` instance, freeing associated memory.
     pub fn deinit(self: *Self) void {
         self.state.deinit();
     }
