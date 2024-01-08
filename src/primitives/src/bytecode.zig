@@ -82,10 +82,6 @@ pub const Bytecode = struct {
     bytecode: []u8,
     state: BytecodeState,
 
-    pub fn default() Self {
-        return Self.init();
-    }
-
     /// Creates a new `Bytecode` with exactly one STOP opcode.
     pub fn init(allocator: Allocator) Self {
         var buf: [1]u8 = .{0};
