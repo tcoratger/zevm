@@ -1,3 +1,7 @@
+const std = @import("std");
+
+const Allocator = std.mem.Allocator;
+
 const EmptyDatabase = @import("./emptydb.zig").EmptyDatabase;
 const AccountInfo = @import("../../../primitives/primitives.zig").AccountInfo;
 const Bytecode = @import("../../../primitives/primitives.zig").Bytecode;
@@ -18,9 +22,9 @@ pub const Database = union(enum) {
         };
     }
 
-    pub fn codeByHash(self: *const Self, codeHash: B256) !Bytecode {
+    pub fn codeByHash(self: *const Self, allocator: Allocator, codeHash: B256) !Bytecode {
         return switch (self.*) {
-            inline else => |case| try case.codeByHash(codeHash),
+            inline else => |case| try case.codeByHash(allocator, codeHash),
         };
     }
 

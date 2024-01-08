@@ -201,7 +201,7 @@ pub const JournaledState = struct {
         try last_journal_item.append(allocator, .{ .CodeChange = .{ .address = address } });
 
         // Update the account's code hash with the hash of the new code.
-        account.info.code_hash = code.hash_slow();
+        account.info.code_hash = code.hashSlow();
 
         // Set the new bytecode as the code for the account.
         account.info.code = code;
@@ -760,9 +760,12 @@ pub const JournaledState = struct {
         if (load_account[0].info.code == null) {
             // If code is null, initialize it based on code hash.
             if (load_account[0].info.code_hash.eql(Constants.KECCAK_EMPTY)) {
-                load_account[0].info.code = Bytecode.init();
+                load_account[0].info.code = Bytecode.init(allocator);
             } else {
-                load_account[0].info.code = try db.codeByHash(load_account[0].info.code_hash);
+                load_account[0].info.code = try db.codeByHash(
+                    allocator,
+                    load_account[0].info.code_hash,
+                );
             }
         }
 
@@ -1232,7 +1235,7 @@ test "JournaledState: setCode should set the code properly at the provided addre
 
     // Define a buffer and create a Bytecode instance.
     var buf: [5]u8 = .{ 1, 2, 3, 4, 5 };
-    const code = Bytecode.new_checked(buf[0..], 3);
+    const code = Bytecode.newChecked(buf[0..], 3);
 
     // Set the code for the account at the specified address.
     try journal_state.setCode(std.testing.allocator, address, code);
@@ -1249,7 +1252,7 @@ test "JournaledState: setCode should set the code properly at the provided addre
 
     // Ensure that the code hash for the account matches the keccak256 hash of the provided code.
     try expectEqual(
-        Utils.keccak256(code.original_bytes()),
+        Utils.keccak256(code.originalBytes()),
         (try journal_state.getAccount(address)).info.code_hash,
     );
 
@@ -1610,7 +1613,7 @@ test "JournaledState: loadAccount should return constructed account and is cold 
         .balance = 0,
         .nonce = 0,
         .code_hash = Constants.KECCAK_EMPTY,
-        .code = Bytecode.init(),
+        .code = Bytecode.init(std.testing.allocator),
     }));
 
     // Check that the storage count of the loaded account is zero.
@@ -1662,7 +1665,7 @@ test "JournaledState: loadAccount should return account corresponding to provide
         .balance = 0,
         .nonce = 0,
         .code_hash = Constants.KECCAK_EMPTY,
-        .code = Bytecode.init(),
+        .code = Bytecode.init(std.testing.allocator),
     }));
 
     // Check that the storage count of the loaded account is zero.
@@ -1747,7 +1750,7 @@ test "JournaledState: loadCode should create a new code if code hash is Keccak E
     const load_code = try journal_state.loadCode(std.testing.allocator, address, db);
 
     // Assert that the loaded code is initialized if the code hash is Keccak Empty.
-    try expect(load_code[0].info.code.?.eql(Bytecode.init()));
+    try expect(load_code[0].info.code.?.eql(Bytecode.init(std.testing.allocator)));
 
     // Assert that the loaded code is initialized, indicating the code was created.
     try expect(load_code[1]);

@@ -3,6 +3,7 @@ pub const SpecId = @import("./src/specifications.zig").SpecId;
 pub const B160 = @import("./src/bits.zig").B160;
 pub const B256 = @import("./src/bits.zig").B256;
 pub const Bytecode = @import("./src/bytecode.zig").Bytecode;
+pub const JumpMap = @import("./src/bytecode.zig").JumpMap;
 pub const CreateScheme = @import("./src/env.zig").CreateScheme;
 pub const Env = @import("./src/env.zig").Env;
 pub const TxEnv = @import("./src/env.zig").TxEnv;

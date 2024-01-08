@@ -25,8 +25,8 @@ pub const EmptyDatabase = struct {
     }
 
     /// Retrieves bytecode based on the given hash.
-    pub fn codeByHash(_: *const Self, _: B256) !Bytecode {
-        return Bytecode.init();
+    pub fn codeByHash(_: *const Self, allocator: Allocator, _: B256) !Bytecode {
+        return Bytecode.init(allocator);
     }
 
     /// Retrieves data from storage using the provided address and index.
@@ -56,7 +56,10 @@ test "EmptyDatabase: init function should return an empty database" {
     );
 
     // Ensure codeByHash returns Bytecode.init() for B256.zero().
-    try expect((try empty_db.codeByHash(B256.zero())).eql(Bytecode.init()));
+    try expect((try empty_db.codeByHash(
+        std.testing.allocator,
+        B256.zero(),
+    )).eql(Bytecode.init(std.testing.allocator)));
 
     // Verify that storage returns 0 for the given address and index 150.
     try expectEqual(
