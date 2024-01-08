@@ -3,6 +3,7 @@ const primitives = @import("../../primitives/primitives.zig");
 
 const B160 = primitives.B160;
 const B256 = primitives.B256;
+const ZERO_ADDRESS = primitives.Constants.ZERO_ADDRESS;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
@@ -112,11 +113,12 @@ pub const CallContext = struct {
     /// The scheme used for the call.
     scheme: CallScheme,
 
+    /// Initializes a default `CallContext`.
     pub fn default() !Self {
         return .{
-            .address = [20]u8{0},
-            .caller = [20]u8{0},
-            .code_address = [20]u8{0},
+            .address = ZERO_ADDRESS,
+            .caller = ZERO_ADDRESS,
+            .code_address = ZERO_ADDRESS,
             .apparent_value = 0,
             .scheme = .Call,
         };

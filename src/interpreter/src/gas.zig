@@ -54,7 +54,7 @@ pub const Gas = struct {
     }
 
     /// Erases a gas cost from the totals.
-    pub fn erase_cost(self: *Self, returned: u64) void {
+    pub fn eraseCost(self: *Self, returned: u64) void {
         self.used -= returned;
         self.all_used_gas -= returned;
     }
@@ -62,12 +62,12 @@ pub const Gas = struct {
     /// Records a refund value.
     ///
     /// `refund` can be negative but `self.refunded` should always be positive at the end of transact.
-    pub fn record_refund(self: *Self, refund: i64) void {
+    pub fn recordRefund(self: *Self, refund: i64) void {
         self.refunded += refund;
     }
 
     /// Set a refund value
-    pub fn set_refund(self: *Self, refund: i64) void {
+    pub fn setRefund(self: *Self, refund: i64) void {
         self.refunded = refund;
     }
 
@@ -77,28 +77,43 @@ pub const Gas = struct {
     ///
     /// This function is called on every instruction in the interpreter if the feature
     /// `no_gas_measuring` is not enabled.
-    pub fn record_cost(self: *Self, cost: u64) bool {
+    pub fn recordCost(self: *Self, cost: u64) bool {
+        // Calculate the total gas used by adding the current gas used and the cost of the current operation.
         const all_used_gas = self.all_used_gas +| cost;
 
+        // Check if the total gas used exceeds the gas limit.
         if (self.limit < all_used_gas) {
+            // If the total gas used exceeds the gas limit, return false to indicate gas limit exceeded.
             return false;
         }
 
+        // If the gas limit is not exceeded, update the gas used and total gas used values.
         self.used += cost;
         self.all_used_gas = all_used_gas;
+
+        // Return true to indicate that the gas cost was successfully recorded.
         return true;
     }
 
-    /// used to record gas used for memory expansion.
-    pub fn record_memory(self: *Self, gas_memory: u64) bool {
+    /// Records gas used for memory expansion.
+    pub fn recordMemory(self: *Self, gas_memory: u64) bool {
+        // Check if the provided gas usage for memory expansion is greater than the existing memory gas usage.
         if (gas_memory > self.memory) {
+            // Calculate the total gas used by adding the current total gas used and the memory expansion gas.
             const all_used_gas = self.all_used_gas +| gas_memory;
+
+            // Check if the total gas used exceeds the gas limit.
             if (self.limit < all_used_gas) {
+                // If the gas limit is exceeded, return false to indicate gas limit exceeded.
                 return false;
             }
+
+            // Update the memory gas usage and total gas used if gas limit is not exceeded.
             self.memory = gas_memory;
             self.all_used_gas = all_used_gas;
         }
+
+        // Return true to indicate that the memory gas was recorded or unchanged.
         return true;
     }
 };
@@ -138,7 +153,7 @@ test "Gas: remaining" {
     try expectEqual(Gas.remaining(&g), 12);
 }
 
-test "Gas: erase_cost" {
+test "Gas: eraseCost" {
     var g = Gas{
         .limit = 15,
         .used = 20,
@@ -146,7 +161,7 @@ test "Gas: erase_cost" {
         .refunded = 26,
         .all_used_gas = 15,
     };
-    Gas.erase_cost(&g, 5);
+    Gas.eraseCost(&g, 5);
     try expectEqual(g, Gas{
         .limit = 15,
         .used = 15,
@@ -156,7 +171,7 @@ test "Gas: erase_cost" {
     });
 }
 
-test "Gas: record_refund" {
+test "Gas: recordRefund" {
     var g = Gas{
         .limit = 15,
         .used = 20,
@@ -164,7 +179,7 @@ test "Gas: record_refund" {
         .refunded = 26,
         .all_used_gas = 15,
     };
-    Gas.record_refund(&g, 5);
+    Gas.recordRefund(&g, 5);
     try expectEqual(g, Gas{
         .limit = 15,
         .used = 20,
@@ -174,7 +189,7 @@ test "Gas: record_refund" {
     });
 }
 
-test "Gas: set_refund" {
+test "Gas: setRefund" {
     var g = Gas{
         .limit = 15,
         .used = 20,
@@ -182,7 +197,7 @@ test "Gas: set_refund" {
         .refunded = 26,
         .all_used_gas = 15,
     };
-    Gas.set_refund(&g, 5);
+    Gas.setRefund(&g, 5);
     try expectEqual(g, Gas{
         .limit = 15,
         .used = 20,
@@ -192,7 +207,7 @@ test "Gas: set_refund" {
     });
 }
 
-test "Gas: record_cost with exceeded gas limit" {
+test "Gas: recordCost with exceeded gas limit" {
     var g = Gas{
         .limit = 15,
         .used = 20,
@@ -200,10 +215,10 @@ test "Gas: record_cost with exceeded gas limit" {
         .refunded = 26,
         .all_used_gas = 10,
     };
-    try expectEqual(Gas.record_cost(&g, 10), false);
+    try expectEqual(Gas.recordCost(&g, 10), false);
 }
 
-test "Gas: record_cost not exceeded gas limit" {
+test "Gas: recordCost not exceeded gas limit" {
     var g = Gas{
         .limit = 15,
         .used = 20,
@@ -211,7 +226,7 @@ test "Gas: record_cost not exceeded gas limit" {
         .refunded = 26,
         .all_used_gas = 10,
     };
-    try expectEqual(Gas.record_cost(&g, 2), true);
+    try expectEqual(Gas.recordCost(&g, 2), true);
     try expectEqual(g, Gas{
         .limit = 15,
         .used = 22,
@@ -221,7 +236,7 @@ test "Gas: record_cost not exceeded gas limit" {
     });
 }
 
-test "Gas: record_memory gas_memory lower than memory limit" {
+test "Gas: recordMemory gas_memory lower than memory limit" {
     var g = Gas{
         .limit = 15,
         .used = 20,
@@ -229,7 +244,7 @@ test "Gas: record_memory gas_memory lower than memory limit" {
         .refunded = 26,
         .all_used_gas = 10,
     };
-    try expectEqual(Gas.record_memory(&g, 10), true);
+    try expectEqual(Gas.recordMemory(&g, 10), true);
     try expectEqual(g, Gas{
         .limit = 15,
         .used = 20,
@@ -239,7 +254,7 @@ test "Gas: record_memory gas_memory lower than memory limit" {
     });
 }
 
-test "Gas: record_memory gas_memory higher than memory limit with gas used lower than limit" {
+test "Gas: recordMemory gas_memory higher than memory limit with gas used lower than limit" {
     var g = Gas{
         .limit = 100,
         .used = 20,
@@ -247,7 +262,7 @@ test "Gas: record_memory gas_memory higher than memory limit with gas used lower
         .refunded = 26,
         .all_used_gas = 10,
     };
-    try expectEqual(Gas.record_memory(&g, 28), true);
+    try expectEqual(Gas.recordMemory(&g, 28), true);
     try expectEqual(g, Gas{
         .limit = 100,
         .used = 20,
@@ -257,7 +272,7 @@ test "Gas: record_memory gas_memory higher than memory limit with gas used lower
     });
 }
 
-test "Gas: record_memory gas_memory higher than memory limit with gas used higher than limit" {
+test "Gas: recordMemory gas_memory higher than memory limit with gas used higher than limit" {
     var g = Gas{
         .limit = 10,
         .used = 20,
@@ -265,7 +280,7 @@ test "Gas: record_memory gas_memory higher than memory limit with gas used highe
         .refunded = 26,
         .all_used_gas = 10,
     };
-    try expectEqual(Gas.record_memory(&g, 28), false);
+    try expectEqual(Gas.recordMemory(&g, 28), false);
     try expectEqual(g, Gas{
         .limit = 10,
         .used = 20,
